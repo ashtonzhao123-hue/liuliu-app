@@ -177,6 +177,13 @@ export function mapOrder(row: Row): Order {
     ownerNicknameSnapshot: row.owner_nickname_snapshot ?? '',
     walkerNicknameSnapshot: row.walker_nickname_snapshot ?? undefined,
     addressSnapshot: row.address_snapshot ?? '',
+    reportPhotos: Array.isArray(row.report_photos) ? row.report_photos : [],
+    hasPoop: row.has_poop ?? undefined,
+    hasPee: row.has_pee ?? undefined,
+    walkerNote: row.walker_note ?? undefined,
+    walkDistance: row.walk_distance === null || row.walk_distance === undefined ? undefined : Number(row.walk_distance),
+    walkDuration: row.walk_duration === null || row.walk_duration === undefined ? undefined : Number(row.walk_duration),
+    reportSubmittedAt: row.report_submitted_at ?? undefined,
     createdAt: row.created_at ?? new Date().toISOString(),
     updatedAt: row.updated_at ?? new Date().toISOString()
   };
@@ -208,7 +215,14 @@ export function orderToRow(order: Partial<Order>) {
     breed_snapshot: order.breedSnapshot,
     owner_nickname_snapshot: order.ownerNicknameSnapshot,
     walker_nickname_snapshot: order.walkerNicknameSnapshot,
-    address_snapshot: order.addressSnapshot
+    address_snapshot: order.addressSnapshot,
+    report_photos: order.reportPhotos,
+    has_poop: order.hasPoop,
+    has_pee: order.hasPee,
+    walker_note: order.walkerNote,
+    walk_distance: order.walkDistance,
+    walk_duration: order.walkDuration,
+    report_submitted_at: order.reportSubmittedAt
   });
 }
 
@@ -304,6 +318,10 @@ export function mapReview(row: Row): Review {
     petFriendlyScore: row.pet_friendly_score ?? 5,
     requirementScore: row.requirement_score ?? 5,
     content: row.content ?? '',
+    isRevealed: row.is_revealed ?? false,
+    revealedAt: row.revealed_at ?? undefined,
+    dimensionTags: Array.isArray(row.dimension_tags) ? row.dimension_tags : [],
+    privateNote: row.private_note ?? undefined,
     createdAt: row.created_at ?? new Date().toISOString()
   };
 }
@@ -318,7 +336,11 @@ export function reviewToRow(review: Partial<Review>) {
     attitude_score: review.attitudeScore,
     pet_friendly_score: review.petFriendlyScore,
     requirement_score: review.requirementScore,
-    content: review.content
+    content: review.content,
+    is_revealed: review.isRevealed,
+    revealed_at: review.revealedAt,
+    dimension_tags: review.dimensionTags,
+    private_note: review.privateNote
   });
 }
 

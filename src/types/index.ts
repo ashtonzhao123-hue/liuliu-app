@@ -127,11 +127,6 @@ export interface AuthToken {
   expiresAt: ISODateTime;
 }
 
-export interface LoginRequest {
-  mobile: string;
-  code: string;
-}
-
 export interface LoginResponse {
   token: AuthToken;
   user: User;
@@ -251,6 +246,13 @@ export interface Order extends TimestampFields {
   ownerNicknameSnapshot: string;
   walkerNicknameSnapshot?: string;
   addressSnapshot: string;
+  reportPhotos?: string[];
+  hasPoop?: boolean;
+  hasPee?: boolean;
+  walkerNote?: string;
+  walkDistance?: number;
+  walkDuration?: number;
+  reportSubmittedAt?: ISODateTime;
 }
 
 export interface OrderCheckpoint {
@@ -314,6 +316,10 @@ export interface Review {
   petFriendlyScore: number;
   requirementScore: number;
   content: string;
+  isRevealed?: boolean;
+  revealedAt?: ISODateTime;
+  dimensionTags?: string[];
+  privateNote?: string;
   createdAt: ISODateTime;
 }
 

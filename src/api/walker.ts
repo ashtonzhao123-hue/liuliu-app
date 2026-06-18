@@ -1,8 +1,10 @@
-import { supabase, assertSupabaseConfigured } from '../lib/supabase';
+﻿import { supabase, assertSupabaseConfigured } from '../lib/supabase';
 import {
   CheckpointType,
   ComplaintStatus,
   OrderStatus,
+  WalkerAuthStatus,
+  WalkerServiceStatus,
   type Complaint,
   type ID,
   type Order,
@@ -44,6 +46,15 @@ export interface WalkerStats {
   totalIncome: number;
   serviceCount: number;
   averageRating: number;
+  petCount: number;
+  totalDistance: number;
+}
+
+export interface FinishWalkerReportInput {
+  note: string;
+  photoUrls: string[];
+  hasPoop: boolean;
+  hasPee: boolean;
 }
 
 export type WalkerHistoryFilter = 'all' | 'active' | 'pendingConfirm' | 'completed' | 'cancelled';
@@ -75,16 +86,22 @@ export async function listWalkerOrders(walkerUserId: ID, filter: WalkerHistoryFi
   return hydrateBundles((data ?? []).map(mapOrder));
 }
 
-export async function getWalkerOrderBundle(orderId: ID): Promise<WalkerOrderBundle | undefined> {
+export async function getWalkerOrderBundle(orderId: ID, walkerUserId?: ID): Promise<WalkerOrderBundle | undefined> {
   assertSupabaseConfigured();
-  const { data, error } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+  let query = supabase.from('orders').select('*').eq('id', orderId);
+  if (walkerUserId) {
+    query = query.eq('walker_id', walkerUserId);
+  }
+  const { data, error } = await query.maybeSingle();
   if (error) throw new Error(error.message);
-  const bundles = await hydrateBundles(data ? [mapOrder(data)] : []);
+  if (!data) return undefined;
+  const bundles = await hydrateBundles([mapOrder(data)]);
   return bundles[0];
 }
 
 export async function acceptWalkerOrder(orderId: ID, walkerUserId: ID, walkerNickname: string): Promise<Order> {
   assertSupabaseConfigured();
+  await assertWalkerCanAccept(walkerUserId);
   const { data, error } = await supabase
     .from('orders')
     .update({ walker_id: walkerUserId, walker_nickname_snapshot: walkerNickname, order_status: OrderStatus.PendingPay })
@@ -93,12 +110,12 @@ export async function acceptWalkerOrder(orderId: ID, walkerUserId: ID, walkerNic
     .select('*')
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new Error('这单已经被接走啦，看看其他订单吧');
+  if (!data) throw new Error('杩欏崟宸茬粡琚帴璧板暒锛岀湅鐪嬪叾浠栬鍗曞惂');
   return mapOrder(data);
 }
 
 export async function submitArriveCheckpoint(orderId: ID, walkerUserId: ID, note: string, photoUrl?: string): Promise<Order> {
-  const bundle = await getWalkerOrderBundle(orderId);
+  const bundle = await getWalkerOrderBundle(orderId, walkerUserId);
   if (!bundle) throw new Error('订单不存在');
   const point = getOrderPoint(bundle);
   const { error } = await supabase.from('order_checkpoints').insert(
@@ -117,7 +134,7 @@ export async function submitArriveCheckpoint(orderId: ID, walkerUserId: ID, note
 }
 
 export async function startWalkerService(orderId: ID, walkerUserId: ID): Promise<Order> {
-  const bundle = await getWalkerOrderBundle(orderId);
+  const bundle = await getWalkerOrderBundle(orderId, walkerUserId);
   if (!bundle) throw new Error('订单不存在');
   const point = getOrderPoint(bundle);
   const now = new Date().toISOString();
@@ -140,7 +157,7 @@ export async function startWalkerService(orderId: ID, walkerUserId: ID): Promise
 }
 
 export async function uploadWalkerTrack(orderId: ID, walkerUserId: ID): Promise<OrderTrack> {
-  const bundle = await getWalkerOrderBundle(orderId);
+  const bundle = await getWalkerOrderBundle(orderId, walkerUserId);
   if (!bundle) throw new Error('订单不存在');
   const point = getOrderPoint(bundle);
   const { data, error } = await supabase
@@ -153,7 +170,7 @@ export async function uploadWalkerTrack(orderId: ID, walkerUserId: ID): Promise<
 }
 
 export async function uploadWalkerMedia(orderId: ID, walkerUserId: ID, dataUrl: string, remark: string): Promise<OrderMedia> {
-  const bundle = await getWalkerOrderBundle(orderId);
+  const bundle = await getWalkerOrderBundle(orderId, walkerUserId);
   if (!bundle) throw new Error('订单不存在');
   const point = getOrderPoint(bundle);
   const mediaInsert = await supabase
@@ -163,29 +180,40 @@ export async function uploadWalkerMedia(orderId: ID, walkerUserId: ID, dataUrl: 
     .single();
   if (mediaInsert.error) throw new Error(mediaInsert.error.message);
   const checkpoint = await supabase.from('order_checkpoints').insert(
-    checkpointToRow({ orderId, walkerUserId, checkpointType: CheckpointType.Progress, lat: point.lat, lng: point.lng, photoUrl: dataUrl, note: remark || '过程打卡' })
+    checkpointToRow({ orderId, walkerUserId, checkpointType: CheckpointType.Progress, lat: point.lat, lng: point.lng, photoUrl: dataUrl, note: remark || '杩囩▼鎵撳崱' })
   );
   if (checkpoint.error) throw new Error(checkpoint.error.message);
   return mapMedia(mediaInsert.data);
 }
 
-export async function finishWalkerService(orderId: ID, walkerUserId: ID, note: string, photoUrl?: string): Promise<Order> {
-  const bundle = await getWalkerOrderBundle(orderId);
+export async function finishWalkerService(orderId: ID, walkerUserId: ID, report: FinishWalkerReportInput): Promise<Order> {
+  const bundle = await getWalkerOrderBundle(orderId, walkerUserId);
   if (!bundle) throw new Error('订单不存在');
-  const minCount = bundle.order.serviceDurationMinutes === 60 ? 2 : 1;
-  if (bundle.media.filter((item) => item.mediaScene === 2).length < minCount) throw new Error(`请至少上传 ${minCount} 张过程照片`);
+  const photoUrls = report.photoUrls.filter(Boolean);
+  if (photoUrls.length < 1) throw new Error('请至少上传一张遛狗报告照片');
   const point = getOrderPoint(bundle);
   const checkpoint = await supabase.from('order_checkpoints').insert(
-    checkpointToRow({ orderId, walkerUserId, checkpointType: CheckpointType.ServiceEnded, lat: point.lat, lng: point.lng, photoUrl, note })
+    checkpointToRow({ orderId, walkerUserId, checkpointType: CheckpointType.ServiceEnded, lat: point.lat, lng: point.lng, photoUrl: photoUrls[0], note: report.note })
   );
   if (checkpoint.error) throw new Error(checkpoint.error.message);
-  if (photoUrl) {
-    const media = await supabase.from('order_media').insert(mediaToRow({ orderId, uploaderUserId: walkerUserId, mediaType: 1, mediaScene: 3, mediaUrl: photoUrl, thumbnailUrl: photoUrl, remark: note }));
-    if (media.error) throw new Error(media.error.message);
-  }
-  return updateOrder(orderId, { order_status: OrderStatus.PendingOwnerConfirm, end_time: new Date().toISOString() });
+  const media = await supabase.from('order_media').insert(
+    photoUrls.map((photoUrl) =>
+      mediaToRow({ orderId, uploaderUserId: walkerUserId, mediaType: 1, mediaScene: 3, mediaUrl: photoUrl, thumbnailUrl: photoUrl, remark: report.note })
+    )
+  );
+  if (media.error) throw new Error(media.error.message);
+  return updateOrder(orderId, {
+    order_status: OrderStatus.PendingOwnerConfirm,
+    end_time: new Date().toISOString(),
+    report_photos: photoUrls,
+    has_poop: report.hasPoop,
+    has_pee: report.hasPee,
+    walker_note: report.note,
+    walk_distance: estimateWalkDistanceKm(bundle.order.serviceDurationMinutes),
+    walk_duration: bundle.order.serviceDurationMinutes,
+    report_submitted_at: new Date().toISOString()
+  });
 }
-
 export async function getWalkerStats(walkerUserId: ID): Promise<WalkerStats> {
   assertSupabaseConfigured();
   const { data: orders, error } = await supabase.from('orders').select('*').eq('walker_id', walkerUserId).eq('order_status', OrderStatus.Completed);
@@ -198,16 +226,30 @@ export async function getWalkerStats(walkerUserId: ID): Promise<WalkerStats> {
   const sum = (items: Order[]) => items.reduce((total, order) => total + order.walkerIncome, 0);
   const { data: reviews } = await supabase.from('reviews').select('*').eq('to_user_id', walkerUserId);
   const ratings = (reviews ?? []).map((row) => mapReview(row).rating);
+  const petCount = new Set(mapped.map((order) => order.petId)).size;
+  const totalDistance = mapped.reduce((total, order) => total + (order.walkDistance ?? estimateWalkDistanceKm(order.serviceDurationMinutes)), 0);
   return {
     todayIncome: sum(mapped.filter((order) => order.completedAt && new Date(order.completedAt).toDateString() === today)),
     weekIncome: sum(mapped.filter((order) => order.completedAt && new Date(order.completedAt) >= weekStart)),
     totalIncome: sum(mapped),
     serviceCount: mapped.length,
-    averageRating: ratings.length ? Number((ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)) : 5
+    averageRating: ratings.length ? Number((ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)) : 5,
+    petCount,
+    totalDistance: Number(totalDistance.toFixed(1))
   };
 }
 
 export async function submitWalkerComplaint(orderId: ID, walkerUserId: ID, content: string): Promise<Complaint> {
+  // Verify walker is assigned to this order
+  const { data: orderRow, error: orderError } = await supabase
+    .from('orders')
+    .select('walker_id')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (orderError) throw new Error(orderError.message);
+  if (!orderRow || orderRow.walker_id !== walkerUserId) {
+    throw new Error('鍙兘瀵硅嚜宸辨湇鍔＄殑璁㈠崟鍙戣捣鎶曡瘔');
+  }
   const { data, error } = await supabase
     .from('complaints')
     .insert(complaintToRow({ orderId, userId: walkerUserId, complaintType: 'other', content, evidenceUrls: [], status: ComplaintStatus.Pending }))
@@ -247,6 +289,32 @@ async function hydrateBundles(orders: Order[]): Promise<WalkerOrderBundle[]> {
 
 async function updateOrder(orderId: ID, values: Record<string, any>): Promise<Order> {
   assertSupabaseConfigured();
+  // Fetch current state to enforce valid transitions
+  const { data: current, error: fetchError } = await supabase
+    .from('orders')
+    .select('order_status')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (fetchError) throw new Error(fetchError.message);
+  if (!current) throw new Error('订单不存在');
+  // Terminal states cannot be modified by walker
+  const terminalStatuses: OrderStatus[] = [OrderStatus.Completed, OrderStatus.Cancelled, OrderStatus.ExceptionHandling];
+  if (terminalStatuses.includes(current.order_status)) {
+    throw new Error('订单已结束，无法再修改状态');
+  }
+  // Validate walker-specific state transitions
+  if (values.order_status !== undefined) {
+    const allowedTransitions: Record<number, OrderStatus[]> = {
+      [OrderStatus.Accepted]: [OrderStatus.WalkerArrived],
+      [OrderStatus.WalkerArrived]: [OrderStatus.InService],
+      [OrderStatus.InService]: [OrderStatus.PendingOwnerConfirm],
+      [OrderStatus.PendingPay]: [OrderStatus.Cancelled],   // walker cannot pay, but can cancel
+    };
+    const allowed = allowedTransitions[current.order_status];
+    if (!allowed || !allowed.includes(values.order_status)) {
+      throw new Error('当前订单状态不允许此操作');
+    }
+  }
   const { data, error } = await supabase.from('orders').update(values).eq('id', orderId).select('*').single();
   if (error) throw new Error(error.message);
   return mapOrder(data);
@@ -265,6 +333,26 @@ function getOrderPoint(bundle: WalkerOrderBundle) {
   return { lat: lastTrack?.lat ?? bundle.address?.lat ?? SERVICE_CENTER.lat, lng: lastTrack?.lng ?? bundle.address?.lng ?? SERVICE_CENTER.lng };
 }
 
+function estimateWalkDistanceKm(durationMinutes: number): number {
+  return Number(Math.max(0.4, durationMinutes * 0.035).toFixed(1));
+}
+
 function randomDelta(): number {
   return 0.00012 + Math.random() * 0.0001;
+}
+
+async function assertWalkerCanAccept(walkerUserId: ID): Promise<void> {
+  const { data, error } = await supabase
+    .from('walker_auth')
+    .select('walker_auth_status, walker_service_status')
+    .eq('user_id', walkerUserId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error('浣犺繕鏈彁浜ゆ湇鍔¤€呰璇侊紝璇峰厛瀹屾垚璁よ瘉');
+  if (data.walker_auth_status !== WalkerAuthStatus.Approved) {
+    throw new Error('浣犵殑鏈嶅姟鑰呰璇佽繕鏈€氳繃瀹℃牳');
+  }
+  if (data.walker_service_status === WalkerServiceStatus.Disabled) {
+    throw new Error('浣犵殑鏈嶅姟璧勬牸宸茶绂佺敤锛岃鑱旂郴骞冲彴');
+  }
 }

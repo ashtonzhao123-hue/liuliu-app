@@ -43,40 +43,61 @@ const petStatusOptions = [
 ];
 
 export function AdminHomePage() {
-  const [loggedIn, setLoggedIn] = useState(() => isAdminLoggedIn());
+  const [authState, setAuthState] = useState<'checking' | 'login' | 'ready'>('checking');
 
-  if (!loggedIn) {
-    return <AdminLoginPage onLogin={() => setLoggedIn(true)} />;
+  useEffect(() => {
+    void isAdminLoggedIn().then((loggedIn) => setAuthState(loggedIn ? 'ready' : 'login'));
+  }, []);
+
+  if (authState === 'checking') {
+    return (
+      <main className="admin-login">
+        <section className="admin-login__panel">
+          <h1>遛遛平台后台</h1>
+          <p>正在确认管理员身份...</p>
+        </section>
+      </main>
+    );
   }
 
-  return <AdminDashboardPage onLogout={() => { logoutAdmin(); setLoggedIn(false); }} />;
+  if (authState === 'login') {
+    return <AdminLoginPage onLogin={() => setAuthState('ready')} />;
+  }
+
+  return <AdminDashboardPage onLogout={() => setAuthState('login')} />;
 }
 
 function AdminLoginPage({ onLogin }: { onLogin: () => void }) {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleLogin() {
-    if (!loginAdmin(password)) {
-      Toast.show('密码错误');
-      return;
+  async function handleLogin() {
+    try {
+      setSubmitting(true);
+      await loginAdmin({ email: email.trim(), password });
+      Toast.show('登录成功');
+      onLogin();
+    } catch (error) {
+      Toast.show(error instanceof Error ? error.message : '登录失败');
+    } finally {
+      setSubmitting(false);
     }
-    Toast.show('登录成功');
-    onLogin();
   }
 
   return (
     <main className="admin-login">
       <section className="admin-login__panel">
-        <h1>遛狗平台后台</h1>
+        <h1>遛遛平台后台</h1>
         <Form layout="vertical" className="owner-form">
-          <Form.Item label="账号">
-            <Input value="admin" disabled />
+          <Form.Item label="管理员邮箱">
+            <Input inputMode="email" value={email} placeholder="admin@example.com" onChange={setEmail} />
           </Form.Item>
           <Form.Item label="密码">
-            <Input type="password" value={password} placeholder="请输入后台密码" onChange={setPassword} />
+            <Input type="password" value={password} placeholder="请输入管理员密码" onChange={setPassword} />
           </Form.Item>
         </Form>
-        <Button block color="primary" size="large" onClick={handleLogin}>
+        <Button block color="primary" size="large" loading={submitting} disabled={!email.trim() || password.length < 6} onClick={() => void handleLogin()}>
           登录
         </Button>
       </section>
@@ -85,14 +106,19 @@ function AdminLoginPage({ onLogin }: { onLogin: () => void }) {
 }
 
 function AdminDashboardPage({ onLogout }: { onLogout: () => void }) {
+  async function handleLogout() {
+    await logoutAdmin();
+    onLogout();
+  }
+
   return (
     <main className="admin-shell">
       <header className="admin-header">
         <div>
-          <h1>遛狗平台后台</h1>
+          <h1>遛遛平台后台</h1>
           <p>审核、订单、投诉与认证管理</p>
         </div>
-        <Button size="small" fill="outline" onClick={onLogout}>
+        <Button size="small" fill="outline" onClick={() => void handleLogout()}>
           退出
         </Button>
       </header>
@@ -121,7 +147,7 @@ function DashboardPanel() {
   const [stats, setStats] = useState<AdminDashboardStats>();
 
   useEffect(() => {
-    void getAdminDashboard().then(setStats);
+    void getAdminDashboard().then(setStats).catch((error) => Toast.show(error instanceof Error ? error.message : '加载失败'));
   }, []);
 
   if (!stats) return null;
@@ -162,40 +188,44 @@ function OrderPanel() {
   }
 
   useEffect(() => {
-    void refresh(status);
+    void refresh(status).catch((error) => Toast.show(error instanceof Error ? error.message : '加载失败'));
   }, [status]);
 
   async function handleException(bundle: AdminOrderBundle) {
     await markAdminOrderException(bundle.ownerUserId, bundle.order.id);
     Toast.show('已标记异常');
-    void refresh();
+    await refresh();
   }
 
   async function handleCancel(bundle: AdminOrderBundle) {
     await cancelAdminOrder(bundle.ownerUserId, bundle.order.id);
     Toast.show('已取消订单');
-    void refresh();
+    await refresh();
   }
 
   return (
     <section className="admin-panel">
       <Selector value={[status]} options={orderStatusOptions} onChange={(value) => setStatus(value[0] ?? 'all')} />
-      {orders.length === 0 ? <Empty description="暂无订单" /> : orders.map((bundle) => (
-        <Card key={bundle.order.id} className="summary-card" title={bundle.order.orderNo}>
-          <p>主人：{bundle.order.ownerNicknameSnapshot} | 服务者：{bundle.order.walkerNicknameSnapshot || '-'}</p>
-          <p>宠物：{bundle.order.petNameSnapshot} | 时长：{bundle.order.serviceDurationMinutes}分钟 | 金额：{formatMoney(bundle.order.amountTotal)}</p>
-          <p>创建：{formatDateTime(bundle.order.createdAt)} | 轨迹 {bundle.tracks.length} | 打卡 {bundle.checkpoints.length} | 媒体 {bundle.media.length}</p>
-          <Space wrap>
-            <Tag color={bundle.order.exceptionFlag ? 'danger' : 'primary'}>{getOrderStatusText(bundle.order.orderStatus)}</Tag>
-            {bundle.complaints.length > 0 ? <Tag color="warning">有投诉</Tag> : null}
-          </Space>
-          <Space wrap className="admin-actions">
-            <Button size="small" fill="outline" onClick={() => showOrderDetail(bundle)}>查看详情</Button>
-            <Button size="small" color="warning" fill="outline" onClick={() => void handleException(bundle)}>标记异常</Button>
-            <Button size="small" color="danger" fill="outline" onClick={() => void handleCancel(bundle)}>手动取消</Button>
-          </Space>
-        </Card>
-      ))}
+      {orders.length === 0 ? (
+        <Empty description="暂无订单" />
+      ) : (
+        orders.map((bundle) => (
+          <Card key={bundle.order.id} className="summary-card" title={bundle.order.orderNo}>
+            <p>主人：{bundle.order.ownerNicknameSnapshot} | 服务者：{bundle.order.walkerNicknameSnapshot || '-'}</p>
+            <p>宠物：{bundle.order.petNameSnapshot} | 时长：{bundle.order.serviceDurationMinutes}分钟 | 金额：{formatMoney(bundle.order.amountTotal)}</p>
+            <p>创建：{formatDateTime(bundle.order.createdAt)} | 轨迹 {bundle.tracks.length} | 打卡 {bundle.checkpoints.length} | 媒体 {bundle.media.length}</p>
+            <Space wrap>
+              <Tag color={bundle.order.exceptionFlag ? 'danger' : 'primary'}>{getOrderStatusText(bundle.order.orderStatus)}</Tag>
+              {bundle.complaints.length > 0 ? <Tag color="warning">有投诉</Tag> : null}
+            </Space>
+            <Space wrap className="admin-actions">
+              <Button size="small" fill="outline" onClick={() => showOrderDetail(bundle)}>查看详情</Button>
+              <Button size="small" color="warning" fill="outline" onClick={() => void handleException(bundle)}>标记异常</Button>
+              <Button size="small" color="danger" fill="outline" onClick={() => void handleCancel(bundle)}>手动取消</Button>
+            </Space>
+          </Card>
+        ))
+      )}
     </section>
   );
 }
@@ -224,32 +254,36 @@ function PetReviewPanel() {
   }
 
   useEffect(() => {
-    void refresh(status);
+    void refresh(status).catch((error) => Toast.show(error instanceof Error ? error.message : '加载失败'));
   }, [status]);
 
   async function handleReview(record: AdminPetRecord, approved: boolean) {
     await reviewAdminPet(record.ownerUserId, record.pet.id, approved);
     Toast.show(approved ? '已审核通过' : '已驳回');
-    void refresh();
+    await refresh();
   }
 
   return (
     <section className="admin-panel">
       <Selector value={[status]} options={petStatusOptions} onChange={(value) => setStatus(value[0] ?? 'all')} />
-      {pets.length === 0 ? <Empty description="暂无宠物" /> : pets.map((record) => (
-        <Card key={record.pet.id} className="summary-card" title={record.pet.petName}>
-          <p>品种：{getPetBreedLabel(record.pet.breed)} | 体重：{record.pet.weightKg}kg | 主人：{record.ownerUserId}</p>
-          <p>咬人史：{record.pet.biteHistory ? '是' : '否'} | 接受陌生人：{record.pet.acceptsStrangers ? '是' : '否'} | 牵引习惯：{record.pet.leashTrained ? '是' : '否'}</p>
-          <Space wrap>
-            <Tag color="primary">{getRiskLevelText(record.pet.riskLevel)}</Tag>
-            <Tag color="warning">{getPetReviewText(record.pet.reviewStatus)}</Tag>
-          </Space>
-          <Space wrap className="admin-actions">
-            <Button size="small" color="primary" onClick={() => void handleReview(record, true)}>审核通过</Button>
-            <Button size="small" color="danger" fill="outline" onClick={() => void handleReview(record, false)}>驳回</Button>
-          </Space>
-        </Card>
-      ))}
+      {pets.length === 0 ? (
+        <Empty description="暂无宠物" />
+      ) : (
+        pets.map((record) => (
+          <Card key={record.pet.id} className="summary-card" title={record.pet.petName}>
+            <p>品种：{getPetBreedLabel(record.pet.breed)} | 体重：{record.pet.weightKg}kg | 主人：{record.ownerUserId}</p>
+            <p>咬人史：{record.pet.biteHistory ? '是' : '否'} | 接受陌生人：{record.pet.acceptsStrangers ? '是' : '否'} | 牵引习惯：{record.pet.leashTrained ? '是' : '否'}</p>
+            <Space wrap>
+              <Tag color="primary">{getRiskLevelText(record.pet.riskLevel)}</Tag>
+              <Tag color="warning">{getPetReviewText(record.pet.reviewStatus)}</Tag>
+            </Space>
+            <Space wrap className="admin-actions">
+              <Button size="small" color="primary" onClick={() => void handleReview(record, true)}>审核通过</Button>
+              <Button size="small" color="danger" fill="outline" onClick={() => void handleReview(record, false)}>驳回</Button>
+            </Space>
+          </Card>
+        ))
+      )}
     </section>
   );
 }
@@ -262,33 +296,37 @@ function ComplaintPanel() {
   }
 
   useEffect(() => {
-    void refresh();
+    void refresh().catch((error) => Toast.show(error instanceof Error ? error.message : '加载失败'));
   }, []);
 
   async function handleStatus(record: AdminComplaintRecord, status: ComplaintStatus) {
     await updateAdminComplaintStatus(record.ownerUserId, record.complaint.id, status);
     Toast.show('处理状态已更新');
-    void refresh();
+    await refresh();
   }
 
   return (
     <section className="admin-panel">
-      {records.length === 0 ? <Empty description="暂无投诉" /> : records.map((record) => (
-        <Card key={record.complaint.id} className="summary-card" title={`投诉 ${record.complaint.id}`}>
-          <p>订单：{record.order?.orderNo ?? record.complaint.orderId}</p>
-          <p>投诉人：{record.complaint.userId} | 类型：{record.complaint.complaintType}</p>
-          <p>内容：{record.complaint.content}</p>
-          <p>时间：{formatDateTime(record.complaint.createdAt)}</p>
-          <Space wrap>
-            <Tag color="primary">{getComplaintText(record.complaint.status)}</Tag>
-          </Space>
-          <Space wrap className="admin-actions">
-            <Button size="small" fill="outline" onClick={() => void handleStatus(record, ComplaintStatus.Processing)}>处理中</Button>
-            <Button size="small" color="primary" onClick={() => void handleStatus(record, ComplaintStatus.Completed)}>处理完成</Button>
-            <Button size="small" fill="outline" onClick={() => void handleStatus(record, ComplaintStatus.Closed)}>关闭</Button>
-          </Space>
-        </Card>
-      ))}
+      {records.length === 0 ? (
+        <Empty description="暂无投诉" />
+      ) : (
+        records.map((record) => (
+          <Card key={record.complaint.id} className="summary-card" title={`投诉 ${record.complaint.id}`}>
+            <p>订单：{record.order?.orderNo ?? record.complaint.orderId}</p>
+            <p>投诉人：{record.complaint.userId} | 类型：{record.complaint.complaintType}</p>
+            <p>内容：{record.complaint.content}</p>
+            <p>时间：{formatDateTime(record.complaint.createdAt)}</p>
+            <Space wrap>
+              <Tag color="primary">{getComplaintText(record.complaint.status)}</Tag>
+            </Space>
+            <Space wrap className="admin-actions">
+              <Button size="small" fill="outline" onClick={() => void handleStatus(record, ComplaintStatus.Processing)}>处理中</Button>
+              <Button size="small" color="primary" onClick={() => void handleStatus(record, ComplaintStatus.Completed)}>处理完成</Button>
+              <Button size="small" fill="outline" onClick={() => void handleStatus(record, ComplaintStatus.Closed)}>关闭</Button>
+            </Space>
+          </Card>
+        ))
+      )}
     </section>
   );
 }
@@ -301,13 +339,13 @@ function WalkerApplicationPanel() {
   }
 
   useEffect(() => {
-    void refresh();
+    void refresh().catch((error) => Toast.show(error instanceof Error ? error.message : '加载失败'));
   }, []);
 
   async function handleReview(id: string, approved: boolean) {
     await reviewWalkerApplication(id, approved);
     Toast.show(approved ? '已通过' : '已拒绝');
-    void refresh();
+    await refresh();
   }
 
   return (

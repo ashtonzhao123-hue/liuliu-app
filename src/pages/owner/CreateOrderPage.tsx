@@ -1,40 +1,91 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, Dialog, Form, Selector, TextArea } from 'antd-mobile';
-import { useNavigate } from 'react-router-dom';
-import { AddressReviewStatus, PetReviewStatus, RiskLevel, type Pet, type UserAddress } from '../../types';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { createOrder, getOrderPrice, listAddresses, listPets } from '../../api/owner';
 import { PageContainer } from '../../components/PageContainer';
 import { useAppStore } from '../../stores/useAppStore';
+import { AddressReviewStatus, PetReviewStatus, RiskLevel, type Pet, type UserAddress } from '../../types';
 import { getFriendlyErrorMessage } from '../../utils/errors';
 import { formatMoney } from '../../utils/format';
 import { notify } from '../../utils/notify';
 
+interface RepeatOrderState {
+  petId?: string;
+  addressId?: string;
+  duration?: 30 | 60;
+  specialRequirements?: string;
+}
+
+interface WeatherAdvice {
+  text: string;
+  temp: number;
+  groundTemp: number;
+  level: 'safe' | 'warm' | 'danger';
+}
+
 export function CreateOrderPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const repeatState = (location.state ?? {}) as RepeatOrderState;
   const currentUser = useAppStore((state) => state.currentUser);
   const [pets, setPets] = useState<Pet[]>([]);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [addressId, setAddressId] = useState<string>();
   const [petId, setPetId] = useState<string>();
-  const [duration, setDuration] = useState<30 | 60>(30);
+  const [duration, setDuration] = useState<30 | 60>(repeatState.duration ?? 30);
   const [appointmentTime, setAppointmentTime] = useState(() => toLocalDateTime(new Date(Date.now() + 30 * 60 * 1000)));
-  const [specialRequirements, setSpecialRequirements] = useState('');
+  const [specialRequirements, setSpecialRequirements] = useState(repeatState.specialRequirements ?? '');
+  const [weather, setWeather] = useState<WeatherAdvice>();
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
     void Promise.all([listPets(currentUser.id), listAddresses(currentUser.id)]).then(([petList, addressList]) => {
+      const validPetList = petList.filter((pet) => pet.reviewStatus === PetReviewStatus.Approved && pet.riskLevel === RiskLevel.A);
+      const validAddressList = addressList.filter((address) => address.reviewStatus === AddressReviewStatus.Valid);
       setPets(petList);
       setAddresses(addressList);
-      setAddressId(addressList.find((item) => item.isDefault && item.reviewStatus === AddressReviewStatus.Valid)?.id);
-      setPetId(petList.find((item) => item.reviewStatus === PetReviewStatus.Approved && item.riskLevel === RiskLevel.A)?.id);
+      setAddressId(repeatState.addressId && validAddressList.some((item) => item.id === repeatState.addressId)
+        ? repeatState.addressId
+        : validAddressList.find((item) => item.isDefault)?.id ?? validAddressList[0]?.id);
+      setPetId(repeatState.petId && validPetList.some((item) => item.id === repeatState.petId)
+        ? repeatState.petId
+        : validPetList[0]?.id);
     });
-  }, [currentUser]);
+  }, [currentUser, repeatState.addressId, repeatState.petId]);
 
   const price = useMemo(() => getOrderPrice(duration), [duration]);
   const validPets = pets.filter((pet) => pet.reviewStatus === PetReviewStatus.Approved && pet.riskLevel === RiskLevel.A);
   const validAddresses = addresses.filter((address) => address.reviewStatus === AddressReviewStatus.Valid);
   const selectedPet = validPets.find((pet) => pet.id === petId);
+  const selectedAddress = validAddresses.find((address) => address.id === addressId);
+
+  useEffect(() => {
+    const key = import.meta.env.VITE_HEFENG_WEATHER_KEY;
+    if (!key || !selectedAddress) {
+      setWeather(undefined);
+      return;
+    }
+    const controller = new AbortController();
+    void fetch(`https://devapi.qweather.com/v7/weather/now?location=${selectedAddress.lng},${selectedAddress.lat}&key=${key}`, {
+      signal: controller.signal
+    })
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((data) => {
+        const temp = Number(data?.now?.temp);
+        if (Number.isNaN(temp)) return;
+        const groundTemp = Math.round(temp * 1.7);
+        const level: WeatherAdvice['level'] = groundTemp >= 45 ? 'danger' : groundTemp >= 36 ? 'warm' : 'safe';
+        const text = level === 'danger'
+          ? '地面偏烫，建议避开正午或缩短时长。'
+          : level === 'warm'
+            ? '地面有些热，记得带水，优先走树荫。'
+            : '天气适合出门，正常安排就好。';
+        setWeather({ temp, groundTemp, level, text });
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [selectedAddress]);
 
   async function handleSubmit() {
     if (!currentUser || !addressId || !petId || !appointmentTime) {
@@ -64,7 +115,9 @@ export function CreateOrderPage() {
   }
 
   return (
-    <PageContainer title="发布订单" subtitle="选择地址、宠物和服务时长">
+    <PageContainer title="发布订单" subtitle="选好时间，找人遛">
+      {location.state ? <div className="prefill-note">已带入上次的宠物、地址和时长，换个时间就能发出。</div> : null}
+
       <Form layout="vertical" className="owner-form">
         <Form.Item label="服务地址">
           <Selector
@@ -96,6 +149,12 @@ export function CreateOrderPage() {
             value={appointmentTime}
             onChange={(event) => setAppointmentTime(event.target.value)}
           />
+          {weather ? (
+            <div className={`weather-advice weather-advice--${weather.level}`}>
+              <strong>{weather.temp}°C · 估算地面 {weather.groundTemp}°C</strong>
+              <span>{weather.text}</span>
+            </div>
+          ) : null}
         </Form.Item>
         <Form.Item label="服务时长">
           <div className="duration-toggle">
@@ -113,7 +172,7 @@ export function CreateOrderPage() {
           </div>
         </Form.Item>
         <Form.Item label="特殊要求">
-          <TextArea rows={4} value={specialRequirements} onChange={setSpecialRequirements} />
+          <TextArea rows={4} value={specialRequirements} onChange={setSpecialRequirements} placeholder="比如：怕热、不要去草丛、回家后擦脚。" />
         </Form.Item>
       </Form>
       <Card className="summary-card" title="价格明细">

@@ -1,13 +1,22 @@
 import { create } from 'zustand';
-import { getCurrentBusinessUser, loginWithCode as signInWithPassword, selectUserRole, signUpWithPassword } from '../api/auth';
+import { getCurrentBusinessUser, loginWithPassword, loginWithPhoneOtp, selectUserRole, sendLoginCode } from '../api/auth';
 import { supabase } from '../lib/supabase';
-import { RoleType, type AuthToken, type LoginRequest, type SelectedRole, type User } from '../types';
+import { RoleType, type AuthToken, type SelectedRole, type User } from '../types';
 
 export type RoleMode = SelectedRole;
 
 interface PasswordRequest {
   email: string;
   password: string;
+}
+
+interface PhoneOtpRequest {
+  phone: string;
+}
+
+interface VerifyPhoneOtpRequest {
+  phone: string;
+  token: string;
 }
 
 interface AppState {
@@ -19,8 +28,9 @@ interface AppState {
   isAuthReady: boolean;
   hydrateAuth: () => Promise<void>;
   setRoleMode: (roleMode: RoleMode) => void;
-  loginWithCode: (request: LoginRequest & Partial<PasswordRequest>) => Promise<{ nextPath: string }>;
-  signUpWithPassword: (request: PasswordRequest) => Promise<void>;
+  sendLoginCode: (request: PhoneOtpRequest) => Promise<{ expiresInSeconds: number }>;
+  loginWithPhoneOtp: (request: VerifyPhoneOtpRequest) => Promise<{ nextPath: string }>;
+  loginWithPassword: (request: PasswordRequest) => Promise<{ nextPath: string }>;
   selectRole: (role: SelectedRole) => Promise<string>;
   logout: () => Promise<void>;
 }
@@ -40,8 +50,8 @@ function getRoleType(role: SelectedRole): RoleType {
   return role === 'walker' ? RoleType.Walker : RoleType.Owner;
 }
 
-function applyUserState(user?: User, token?: AuthToken) {
-  const selectedRole = getSelectedRole(user);
+function applyUserState(user?: User, token?: AuthToken, selectedRoleOverride?: SelectedRole) {
+  const selectedRole = selectedRoleOverride ?? getSelectedRole(user);
   return {
     token,
     currentUser: user,
@@ -63,6 +73,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const user = await getCurrentBusinessUser();
       const { data } = await supabase.auth.getSession();
+      const { data: authData } = await supabase.auth.getUser();
+      const metadataRole = getMetadataRole(authData.user?.user_metadata?.role);
       const token = data.session
         ? {
             accessToken: data.session.access_token,
@@ -72,31 +84,24 @@ export const useAppStore = create<AppState>((set, get) => ({
               : new Date(Date.now() + 3600_000).toISOString()
           }
         : undefined;
-      set(applyUserState(user, token));
+      set(applyUserState(user, token, metadataRole));
     } catch {
       set({ isAuthReady: true });
     }
   },
   setRoleMode: (roleMode) => set({ roleMode }),
-  loginWithCode: async (request) => {
-    const response = await signInWithPassword({
-      email: request.email ?? request.mobile,
-      password: request.password ?? request.code
-    });
+  sendLoginCode,
+  loginWithPhoneOtp: async (request) => {
+    const response = await loginWithPhoneOtp(request);
     const selectedRole = response.selectedRole;
-    set(applyUserState(response.user, response.token));
+    set(applyUserState(response.user, response.token, selectedRole));
     return { nextPath: selectedRole ? getRolePath(selectedRole) : '/role-select' };
   },
-  signUpWithPassword: async (request) => {
-    await signUpWithPassword(request);
-    set({
-      token: undefined,
-      currentUser: undefined,
-      roleMode: 'owner',
-      hasSelectedRole: false,
-      isAuthenticated: false,
-      isAuthReady: true
-    });
+  loginWithPassword: async (request) => {
+    const response = await loginWithPassword(request);
+    const selectedRole = response.selectedRole;
+    set(applyUserState(response.user, response.token, selectedRole));
+    return { nextPath: selectedRole ? getRolePath(selectedRole) : '/role-select' };
   },
   selectRole: async (role) => {
     const { currentUser } = get();
@@ -118,3 +123,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   }
 }));
+
+function getMetadataRole(role: unknown): SelectedRole | undefined {
+  return role === 'owner' || role === 'walker' ? role : undefined;
+}

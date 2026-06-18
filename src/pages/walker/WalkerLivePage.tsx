@@ -6,6 +6,7 @@ import { MockMap } from '../../components/MockMap';
 import { PageContainer } from '../../components/PageContainer';
 import { useAppStore } from '../../stores/useAppStore';
 import { OrderStatus, type OrderMedia, type OrderTrack } from '../../types';
+import { readImageAsDataUrl } from '../../utils/image';
 
 export function WalkerLivePage() {
   const { id } = useParams();
@@ -17,8 +18,8 @@ export function WalkerLivePage() {
   const [now, setNow] = useState(Date.now());
 
   async function refresh() {
-    if (!id) return;
-    const next = await getWalkerOrderBundle(id);
+    if (!id || !currentUser) return;
+    const next = await getWalkerOrderBundle(id, currentUser.id);
     setBundle(next);
     setTracks(next?.tracks ?? []);
     setMedia(next?.media ?? []);
@@ -26,7 +27,7 @@ export function WalkerLivePage() {
 
   useEffect(() => {
     void refresh();
-  }, [id]);
+  }, [id, currentUser]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -54,10 +55,14 @@ export function WalkerLivePage() {
 
   async function handleUpload(file?: File) {
     if (!id || !currentUser || !file) return;
-    const dataUrl = await readImage(file);
-    const next = await uploadWalkerMedia(id, currentUser.id, dataUrl, '过程打卡');
-    setMedia((items) => [...items, next]);
-    Toast.show('过程照片已上传');
+    try {
+      const dataUrl = await readImageAsDataUrl(file);
+      const next = await uploadWalkerMedia(id, currentUser.id, dataUrl, '过程打卡');
+      setMedia((items) => [...items, next]);
+      Toast.show('过程照片已上传');
+    } catch (error) {
+      Toast.show(error instanceof Error ? error.message : '上传失败');
+    }
   }
 
   const servedMinutes = useMemo(() => {
@@ -114,12 +119,4 @@ export function WalkerLivePage() {
       </Space>
     </PageContainer>
   );
-}
-
-function readImage(file: File): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.readAsDataURL(file);
-  });
 }

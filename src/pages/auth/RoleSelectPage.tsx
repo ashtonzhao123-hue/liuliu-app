@@ -1,6 +1,6 @@
 import { Card } from 'antd-mobile';
 import { TeamOutline, UserOutline } from 'antd-mobile-icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { SelectedRole } from '../../types';
 import { useAppStore } from '../../stores/useAppStore';
@@ -27,13 +27,21 @@ const roles = [
 export function RoleSelectPage() {
   const navigate = useNavigate();
   const selectRole = useAppStore((state) => state.selectRole);
+  const roleMode = useAppStore((state) => state.roleMode);
+  const hasSelectedRole = useAppStore((state) => state.hasSelectedRole);
   const [submittingRole, setSubmittingRole] = useState<SelectedRole | undefined>();
+
+  useEffect(() => {
+    if (hasSelectedRole) {
+      navigate(roleMode === 'walker' ? '/walker' : '/owner', { replace: true });
+    }
+  }, [hasSelectedRole, navigate, roleMode]);
 
   async function handleSelect(role: SelectedRole) {
     try {
       setSubmittingRole(role);
       const nextPath = await selectRole(role);
-      notify('好，给你备好首页了', 'success');
+      notify('好了，给你备好首页了', 'success');
       navigate(nextPath, { replace: true });
     } catch (error) {
       notify(getFriendlyErrorMessage(error, '身份没选成，我们再试一次？'), 'error');

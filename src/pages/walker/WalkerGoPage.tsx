@@ -4,18 +4,20 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getWalkerOrderBundle, type WalkerOrderBundle } from '../../api/walker';
 import { MockMap } from '../../components/MockMap';
 import { PageContainer } from '../../components/PageContainer';
+import { useAppStore } from '../../stores/useAppStore';
 import { formatDateTime } from '../../utils/format';
 import { OrderStatus } from '../../types';
 
 export function WalkerGoPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const currentUser = useAppStore((state) => state.currentUser);
   const [bundle, setBundle] = useState<WalkerOrderBundle>();
 
   useEffect(() => {
-    if (!id) return;
-    void getWalkerOrderBundle(id).then(setBundle);
-  }, [id]);
+    if (!id || !currentUser) return;
+    void getWalkerOrderBundle(id, currentUser.id).then(setBundle);
+  }, [id, currentUser]);
 
   if (!bundle) return <PageContainer title="前往交接点">订单不存在</PageContainer>;
 

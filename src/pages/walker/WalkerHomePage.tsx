@@ -17,12 +17,22 @@ import { getFriendlyErrorMessage } from '../../utils/errors';
 import { formatDateTime, formatMoney } from '../../utils/format';
 import { notify } from '../../utils/notify';
 
+const EMPTY_STATS: WalkerStats = {
+  todayIncome: 0,
+  weekIncome: 0,
+  totalIncome: 0,
+  serviceCount: 0,
+  averageRating: 5,
+  petCount: 0,
+  totalDistance: 0
+};
+
 export function WalkerHomePage() {
   const navigate = useNavigate();
   const currentUser = useAppStore((state) => state.currentUser);
   const [online, setOnline] = useState(true);
   const [orders, setOrders] = useState<WalkerOrderBundle[]>([]);
-  const [stats, setStats] = useState<WalkerStats>({ todayIncome: 0, weekIncome: 0, totalIncome: 0, serviceCount: 0, averageRating: 5 });
+  const [stats, setStats] = useState<WalkerStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,7 +43,7 @@ export function WalkerHomePage() {
         setOrders(availableOrders);
         setStats(nextStats);
       })
-      .catch((error) => notify(getFriendlyErrorMessage(error, '接单大厅没加载出来，稍后再看看？'), 'error'))
+      .catch((error) => notify(getFriendlyErrorMessage(error, '接单大厅暂时没加载出来，稍后再看看？'), 'error'))
       .finally(() => setLoading(false));
   }, [currentUser]);
 
@@ -44,8 +54,34 @@ export function WalkerHomePage() {
     notify(checked ? '你上线了，附近订单会来找你' : '已切到休息中，慢慢歇口气', 'success');
   }
 
+  async function shareWeeklyReport() {
+    const text = `这周在遛遛完成 ${stats.serviceCount} 单，陪伴 ${stats.petCount} 只毛孩子，走了 ${stats.totalDistance} 公里。`;
+    if (navigator.share) {
+      await navigator.share({ title: '我的遛遛周报', text, url: window.location.origin }).catch(() => undefined);
+      return;
+    }
+    void navigator.clipboard?.writeText(text);
+    notify('周报文案已复制', 'success');
+  }
+
   return (
-    <PageContainer title="今天有空吗？" subtitle="认证状态：靠得住">
+    <PageContainer title="今天有空吗？" subtitle="接一单，把风也遛一遛">
+      <Card className="summary-card walker-achievement-card" title="遛遛战绩">
+        <div className="walker-achievement-grid">
+          <AchievementMetric label="累计遛狗" value={stats.serviceCount} suffix="单" />
+          <AchievementMetric label="陪伴毛孩子" value={stats.petCount} suffix="只" />
+          <AchievementMetric label="遛了" value={stats.totalDistance} suffix="km" decimals={1} />
+        </div>
+        <div className="badge-row">
+          <span className={`walker-badge ${stats.serviceCount >= 7 ? '' : 'walker-badge--locked'}`}>七日稳稳</span>
+          <span className={`walker-badge ${stats.serviceCount >= 30 ? '' : 'walker-badge--locked'}`}>校园熟路</span>
+          <span className={`walker-badge ${stats.averageRating >= 4.8 ? '' : 'walker-badge--locked'}`}>五星口碑</span>
+        </div>
+        <Button fill="outline" size="small" onClick={() => void shareWeeklyReport()}>
+          生成周报
+        </Button>
+      </Card>
+
       <Card className="summary-card walker-state-card" title="当前状态">
         <div className={`card-row walker-status ${online ? 'walker-status--online' : ''}`}>
           <Space>
@@ -85,5 +121,29 @@ export function WalkerHomePage() {
         )}
       </div>
     </PageContainer>
+  );
+}
+
+function AchievementMetric({ label, value, suffix, decimals = 0 }: { label: string; value: number; suffix: string; decimals?: number }) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    let frame = 0;
+    const startedAt = performance.now();
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / 700);
+      setDisplayValue(value * (1 - Math.pow(1 - progress, 3)));
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+
+  return (
+    <div className="walker-achievement-metric">
+      <strong>{displayValue.toFixed(decimals)}</strong>
+      <span>{suffix}</span>
+      <small>{label}</small>
+    </div>
   );
 }

@@ -14,7 +14,7 @@ export function WalkerProfilePage() {
   const setRoleMode = useAppStore((state) => state.setRoleMode);
   const logout = useAppStore((state) => state.logout);
   const [online, setOnline] = useState(true);
-  const [stats, setStats] = useState<WalkerStats>({ todayIncome: 0, weekIncome: 0, totalIncome: 0, serviceCount: 0, averageRating: 5 });
+  const [stats, setStats] = useState<WalkerStats>({ todayIncome: 0, weekIncome: 0, totalIncome: 0, serviceCount: 0, averageRating: 5, petCount: 0, totalDistance: 0 });
 
   useEffect(() => {
     if (!currentUser) return;

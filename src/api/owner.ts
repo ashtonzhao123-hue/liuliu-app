@@ -36,6 +36,7 @@ import {
   reviewToRow,
   trackToRow
 } from './mappers';
+import { getPlatformFeeRate } from '../utils/fee';
 
 export const SERVICE_CENTER = {
   name: '幸福小区',
@@ -44,7 +45,6 @@ export const SERVICE_CENTER = {
 } as const;
 
 export const SERVICE_RADIUS_METERS = 3000;
-export const PLATFORM_COMMISSION_RATE = 0.2;
 
 export const PET_BREEDS: Array<{ code: PetBreedCode; label: string; maxWeightKg: number }> = [
   { code: 'BICHON', label: '比熊', maxWeightKg: 15 },
@@ -176,19 +176,6 @@ export async function deletePet(userId: ID, id: ID): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-export async function approvePetForDemo(userId: ID, id: ID): Promise<Pet> {
-  assertSupabaseConfigured();
-  const { data, error } = await supabase
-    .from('pets')
-    .update({ review_status: PetReviewStatus.Approved, risk_level: RiskLevel.A, reject_reason: null })
-    .eq('id', id)
-    .eq('user_id', userId)
-    .select('*')
-    .single();
-  if (error) throw new Error(error.message);
-  return mapPet(data);
-}
-
 export async function listAddresses(userId: ID): Promise<UserAddress[]> {
   assertSupabaseConfigured();
   const { data, error } = await supabase.from('user_addresses').select('*').eq('user_id', userId).eq('is_deleted', 0).order('created_at', { ascending: false });
@@ -223,7 +210,8 @@ export async function saveAddress(userId: ID, input: AddressInput, id?: ID): Pro
     isDeleted: false
   };
   if (input.isDefault) {
-    await supabase.from('user_addresses').update({ is_default: 0 }).eq('user_id', userId);
+    // Clear existing defaults first — note: for true atomicity use a DB function
+    await supabase.from('user_addresses').update({ is_default: 0 }).eq('user_id', userId).eq('is_default', 1);
   }
   const query = id
     ? supabase.from('user_addresses').update(addressToRow(address)).eq('id', id).eq('user_id', userId).select('*').single()
@@ -241,10 +229,12 @@ export async function deleteAddress(userId: ID, id: ID): Promise<void> {
 
 export async function setDefaultAddress(userId: ID, id: ID): Promise<void> {
   assertSupabaseConfigured();
-  const clear = await supabase.from('user_addresses').update({ is_default: 0 }).eq('user_id', userId);
-  if (clear.error) throw new Error(clear.error.message);
-  const setDefault = await supabase.from('user_addresses').update({ is_default: 1 }).eq('id', id).eq('user_id', userId);
-  if (setDefault.error) throw new Error(setDefault.error.message);
+  // Use the atomic database function to avoid TOCTOU race condition
+  const { error } = await supabase.rpc('set_default_address', {
+    p_user_id: userId,
+    p_address_id: id
+  });
+  if (error) throw new Error(error.message);
 }
 
 export async function listOrders(userId: ID, filter: string = 'all'): Promise<Order[]> {
@@ -262,6 +252,9 @@ export async function getOrderBundle(userId: ID, id: ID) {
   assertSupabaseConfigured();
   const { data: orderRow, error } = await supabase.from('orders').select('*').eq('id', id).eq('owner_id', userId).maybeSingle();
   if (error) throw new Error(error.message);
+  if (!orderRow) {
+    return { order: undefined, tracks: [], checkpoints: [], media: [], review: undefined };
+  }
   const [tracks, checkpoints, media, review] = await Promise.all([
     supabase.from('order_tracks').select('*').eq('order_id', id).order('recorded_at'),
     supabase.from('order_checkpoints').select('*').eq('order_id', id).order('created_at'),
@@ -269,7 +262,7 @@ export async function getOrderBundle(userId: ID, id: ID) {
     supabase.from('reviews').select('*').eq('order_id', id).maybeSingle()
   ]);
   return {
-    order: orderRow ? mapOrder(orderRow) : undefined,
+    order: mapOrder(orderRow),
     tracks: (tracks.data ?? []).map(mapTrack),
     checkpoints: (checkpoints.data ?? []).map(mapCheckpoint),
     media: (media.data ?? []).map(mapMedia),
@@ -279,12 +272,17 @@ export async function getOrderBundle(userId: ID, id: ID) {
 
 export async function createOrder(userId: ID, input: CreateOrderInput): Promise<Order> {
   assertSupabaseConfigured();
+  // Validate appointment time is in the future
+  const appointmentDate = new Date(input.appointmentTime);
+  if (Number.isNaN(appointmentDate.getTime())) throw new Error('预约时间格式不正确');
+  if (appointmentDate <= new Date()) throw new Error('预约时间必须在当前时间之后');
   const [address, pet] = await Promise.all([getAddress(userId, input.addressId), getPet(userId, input.petId)]);
   if (!address || address.reviewStatus !== AddressReviewStatus.Valid) throw new Error('请选择服务范围内的地址');
   if (!pet || pet.reviewStatus !== PetReviewStatus.Approved || pet.riskLevel !== RiskLevel.A) throw new Error('请选择审核通过且风险等级为 A 的宠物');
   const amountTotal = getOrderPrice(input.serviceDurationMinutes);
+  const platformFeeRate = getPlatformFeeRate();
   const payload = orderToRow({
-    orderNo: `LL${Date.now()}`,
+    orderNo: createOrderNo(),
     ownerUserId: userId,
     petId: pet.id,
     addressId: address.id,
@@ -294,8 +292,8 @@ export async function createOrder(userId: ID, input: CreateOrderInput): Promise<
     orderStatus: OrderStatus.PendingAccept,
     specialRequirements: input.specialRequirements,
     amountTotal,
-    platformCommission: Number((amountTotal * PLATFORM_COMMISSION_RATE).toFixed(2)),
-    walkerIncome: Number((amountTotal * (1 - PLATFORM_COMMISSION_RATE)).toFixed(2)),
+    platformCommission: Number((amountTotal * platformFeeRate).toFixed(2)),
+    walkerIncome: Number((amountTotal * (1 - platformFeeRate)).toFixed(2)),
     payStatus: PayStatus.Pending,
     exceptionFlag: 0,
     petNameSnapshot: pet.petName,
@@ -309,11 +307,34 @@ export async function createOrder(userId: ID, input: CreateOrderInput): Promise<
 }
 
 export async function cancelOrder(userId: ID, id: ID): Promise<Order> {
+  const cancellableStatuses: OrderStatus[] = [
+    OrderStatus.PendingAccept,
+    OrderStatus.PendingPay,
+    OrderStatus.Accepted,
+    OrderStatus.WalkerArrived,
+    OrderStatus.InService,
+    OrderStatus.PendingOwnerConfirm
+  ];
+  const { data: current } = await supabase
+    .from('orders')
+    .select('order_status')
+    .eq('id', id)
+    .eq('owner_id', userId)
+    .maybeSingle();
+  if (!current) throw new Error('订单不存在');
+  if (!cancellableStatuses.includes(current.order_status)) {
+    throw new Error('当前订单状态不可取消');
+  }
   return updateOwnerOrder(userId, id, { order_status: OrderStatus.Cancelled, cancel_reason: '主人取消' });
 }
 
 export async function simulateAcceptOrder(userId: ID, id: ID): Promise<Order> {
-  return updateOwnerOrder(userId, id, { walker_id: userId, walker_nickname_snapshot: '林同学', order_status: OrderStatus.PendingPay });
+  const { data, error } = await supabase.from('orders').select('*').eq('id', id).eq('owner_id', userId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error('订单不存在');
+  const order = mapOrder(data);
+  if (order.ownerUserId === userId) throw new Error('主人不能接自己发布的订单');
+  return updateOwnerOrder(userId, id, { walker_id: userId, walker_nickname_snapshot: '模拟遛狗员', order_status: OrderStatus.PendingPay });
 }
 
 export async function simulatePayOrder(userId: ID, id: ID): Promise<Order> {
@@ -339,9 +360,13 @@ export async function submitReview(userId: ID, orderId: ID, input: ReviewInput):
   const { data: orderRow, error: orderError } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
   if (orderError) throw new Error(orderError.message);
   const order = orderRow ? mapOrder(orderRow) : undefined;
+  if (!order) throw new Error('订单不存在');
+  if (order.ownerUserId !== userId) throw new Error('只能评价自己的订单');
+  if (order.orderStatus !== OrderStatus.Completed) throw new Error('订单尚未完成，还不能评价');
+  if (!order.walkerUserId) throw new Error('该订单没有服务者，无法评价');
   const { data, error } = await supabase
     .from('reviews')
-    .insert(reviewToRow({ orderId, fromUserId: userId, toUserId: order?.walkerUserId ?? '', ...input }))
+    .insert(reviewToRow({ orderId, fromUserId: userId, toUserId: order.walkerUserId, ...input }))
     .select('*')
     .single();
   if (error) throw new Error(error.message);
@@ -350,6 +375,16 @@ export async function submitReview(userId: ID, orderId: ID, input: ReviewInput):
 
 export async function submitComplaint(userId: ID, orderId: ID, input: ComplaintInput): Promise<Complaint> {
   assertSupabaseConfigured();
+  const { data: orderRow, error: orderError } = await supabase
+    .from('orders')
+    .select('owner_id, walker_id')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (orderError) throw new Error(orderError.message);
+  if (!orderRow) throw new Error('订单不存在');
+  if (orderRow.owner_id !== userId && orderRow.walker_id !== userId) {
+    throw new Error('只能对自己相关的订单发起投诉');
+  }
   const { data, error } = await supabase
     .from('complaints')
     .insert(complaintToRow({ orderId, userId, complaintType: input.complaintType, content: input.content, evidenceUrls: [], status: ComplaintStatus.Pending }))
@@ -361,6 +396,18 @@ export async function submitComplaint(userId: ID, orderId: ID, input: ComplaintI
 
 async function updateOwnerOrder(userId: ID, id: ID, values: Record<string, any>): Promise<Order> {
   assertSupabaseConfigured();
+  const { data: current, error: fetchError } = await supabase
+    .from('orders')
+    .select('order_status')
+    .eq('id', id)
+    .eq('owner_id', userId)
+    .maybeSingle();
+  if (fetchError) throw new Error(fetchError.message);
+  if (!current) throw new Error('订单不存在');
+  const terminalStatuses: OrderStatus[] = [OrderStatus.Completed, OrderStatus.Cancelled];
+  if (terminalStatuses.includes(current.order_status)) {
+    throw new Error('已完成或已取消的订单不可再修改');
+  }
   const { data, error } = await supabase.from('orders').update(values).eq('id', id).eq('owner_id', userId).select('*').single();
   if (error) throw new Error(error.message);
   return mapOrder(data);
@@ -413,6 +460,11 @@ function getOrderFilterStatuses(filter: string): OrderStatus[] {
   if (filter === 'completed') return [OrderStatus.Completed];
   if (filter === 'cancelled') return [OrderStatus.Cancelled];
   return [];
+}
+
+function createOrderNo(): string {
+  const suffix = crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase();
+  return `LL${Date.now()}${suffix}`;
 }
 
 function validatePet(input: PetInput) {

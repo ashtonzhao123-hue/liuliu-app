@@ -19,13 +19,19 @@ export function WalkerOrderDetailPage() {
   const [accepting, setAccepting] = useState(false);
 
   async function refresh() {
-    if (!id) return;
-    setBundle(await getWalkerOrderBundle(id));
+    if (!id || !currentUser) return;
+    const result = await getWalkerOrderBundle(id);
+    // Guard: if order has a walker assigned, only that walker may view it
+    if (result && result.order.walkerUserId && result.order.walkerUserId !== currentUser.id) {
+      setBundle(undefined);
+      return;
+    }
+    setBundle(result);
   }
 
   useEffect(() => {
     void refresh();
-  }, [id]);
+  }, [id, currentUser]);
 
   async function handleAccept() {
     if (!id || !currentUser) return;

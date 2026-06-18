@@ -1,8 +1,9 @@
 import { useEffect, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { AdminGuard } from './components/AdminGuard';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AdminHomePage } from './pages/admin/AdminHomePage';
 import { LoginPage } from './pages/auth/LoginPage';
-import { RegisterPage } from './pages/auth/RegisterPage';
 import { RoleSelectPage } from './pages/auth/RoleSelectPage';
 import { AddressFormPage } from './pages/owner/AddressFormPage';
 import { AddressListPage } from './pages/owner/AddressListPage';
@@ -35,37 +36,38 @@ export function App() {
   }, [hydrateAuth]);
 
   return (
-    <Routes>
-      <Route path="/" element={<RootRedirect />} />
-      <Route path="/login" element={<PublicOnlyRoute element={<LoginPage />} />} />
-      <Route path="/register" element={<PublicOnlyRoute element={<RegisterPage />} />} />
-      <Route path="/role-select" element={<ProtectedRoute element={<RoleSelectPage />} allowUnselectedRole />} />
-      <Route path="/owner" element={<ProtectedRoute element={<OwnerHomePage />} />} />
-      <Route path="/owner/pets" element={<ProtectedRoute element={<PetListPage />} />} />
-      <Route path="/owner/pets/new" element={<ProtectedRoute element={<PetFormPage />} />} />
-      <Route path="/owner/pets/:id/edit" element={<ProtectedRoute element={<PetFormPage />} />} />
-      <Route path="/owner/addresses" element={<ProtectedRoute element={<AddressListPage />} />} />
-      <Route path="/owner/addresses/new" element={<ProtectedRoute element={<AddressFormPage />} />} />
-      <Route path="/owner/addresses/:id/edit" element={<ProtectedRoute element={<AddressFormPage />} />} />
-      <Route path="/owner/orders/new" element={<ProtectedRoute element={<CreateOrderPage />} />} />
-      <Route path="/owner/orders" element={<ProtectedRoute element={<OrderListPage />} />} />
-      <Route path="/owner/orders/:id" element={<ProtectedRoute element={<OrderDetailPage />} />} />
-      <Route path="/owner/orders/:id/live" element={<ProtectedRoute element={<LiveOrderPage />} />} />
-      <Route path="/owner/orders/:id/confirm" element={<ProtectedRoute element={<ConfirmOrderPage />} />} />
-      <Route path="/owner/orders/:id/review" element={<ProtectedRoute element={<ReviewPage />} />} />
-      <Route path="/owner/orders/:id/complaint" element={<ProtectedRoute element={<ComplaintPage />} />} />
-      <Route path="/owner/profile" element={<ProtectedRoute element={<OwnerProfilePage />} />} />
-      <Route path="/walker" element={<ProtectedRoute element={<WalkerHomePage />} />} />
-      <Route path="/walker/orders/:id" element={<ProtectedRoute element={<WalkerOrderDetailPage />} />} />
-      <Route path="/walker/orders/:id/go" element={<ProtectedRoute element={<WalkerGoPage />} />} />
-      <Route path="/walker/orders/:id/arrive" element={<ProtectedRoute element={<WalkerArrivePage />} />} />
-      <Route path="/walker/orders/:id/live" element={<ProtectedRoute element={<WalkerLivePage />} />} />
-      <Route path="/walker/orders/:id/finish" element={<ProtectedRoute element={<WalkerFinishPage />} />} />
-      <Route path="/walker/history" element={<ProtectedRoute element={<WalkerHistoryPage />} />} />
-      <Route path="/walker/profile" element={<ProtectedRoute element={<WalkerProfilePage />} />} />
-      <Route path="/admin" element={<AdminHomePage />} />
-      <Route path="*" element={<RootRedirect />} />
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="/login" element={<PublicOnlyRoute element={<LoginPage />} />} />
+        <Route path="/role-select" element={<ProtectedRoute element={<RoleSelectPage />} allowUnselectedRole />} />
+        <Route path="/owner" element={<ProtectedRoute element={<OwnerHomePage />} />} />
+        <Route path="/owner/pets" element={<ProtectedRoute element={<PetListPage />} />} />
+        <Route path="/owner/pets/new" element={<ProtectedRoute element={<PetFormPage />} />} />
+        <Route path="/owner/pets/:id/edit" element={<ProtectedRoute element={<PetFormPage />} />} />
+        <Route path="/owner/addresses" element={<ProtectedRoute element={<AddressListPage />} />} />
+        <Route path="/owner/addresses/new" element={<ProtectedRoute element={<AddressFormPage />} />} />
+        <Route path="/owner/addresses/:id/edit" element={<ProtectedRoute element={<AddressFormPage />} />} />
+        <Route path="/owner/orders/new" element={<ProtectedRoute element={<CreateOrderPage />} />} />
+        <Route path="/owner/orders" element={<ProtectedRoute element={<OrderListPage />} />} />
+        <Route path="/owner/orders/:id" element={<ProtectedRoute element={<OrderDetailPage />} />} />
+        <Route path="/owner/orders/:id/live" element={<ProtectedRoute element={<LiveOrderPage />} />} />
+        <Route path="/owner/orders/:id/confirm" element={<ProtectedRoute element={<ConfirmOrderPage />} />} />
+        <Route path="/owner/orders/:id/review" element={<ProtectedRoute element={<ReviewPage />} />} />
+        <Route path="/owner/orders/:id/complaint" element={<ProtectedRoute element={<ComplaintPage />} />} />
+        <Route path="/owner/profile" element={<ProtectedRoute element={<OwnerProfilePage />} />} />
+        <Route path="/walker" element={<ProtectedRoute element={<WalkerHomePage />} />} />
+        <Route path="/walker/orders/:id" element={<ProtectedRoute element={<WalkerOrderDetailPage />} />} />
+        <Route path="/walker/orders/:id/go" element={<ProtectedRoute element={<WalkerGoPage />} />} />
+        <Route path="/walker/orders/:id/arrive" element={<ProtectedRoute element={<WalkerArrivePage />} />} />
+        <Route path="/walker/orders/:id/live" element={<ProtectedRoute element={<WalkerLivePage />} />} />
+        <Route path="/walker/orders/:id/finish" element={<ProtectedRoute element={<WalkerFinishPage />} />} />
+        <Route path="/walker/history" element={<ProtectedRoute element={<WalkerHistoryPage />} />} />
+        <Route path="/walker/profile" element={<ProtectedRoute element={<WalkerProfilePage />} />} />
+        <Route path="/admin" element={<AdminGuard><AdminHomePage /></AdminGuard>} />
+        <Route path="*" element={<RootRedirect />} />
+      </Routes>
+    </ErrorBoundary>
   );
 }
 

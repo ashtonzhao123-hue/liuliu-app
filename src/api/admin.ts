@@ -1,3 +1,4 @@
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase, assertSupabaseConfigured } from '../lib/supabase';
 import {
   ComplaintStatus,
@@ -16,8 +17,7 @@ import {
   type UserAddress
 } from '../types';
 import { mapAddress, mapCheckpoint, mapComplaint, mapMedia, mapOrder, mapPet, mapReview, mapTrack, mapWalkerAuth } from './mappers';
-
-export const ADMIN_SESSION_KEY = 'liuliu.admin.session';
+import type { PasswordAuthRequest } from './auth';
 
 export interface AdminOrderBundle {
   ownerUserId: ID;
@@ -66,22 +66,31 @@ export interface WalkerApplication {
   rejectReason?: string;
 }
 
-export function isAdminLoggedIn(): boolean {
-  return localStorage.getItem(ADMIN_SESSION_KEY) === 'logged-in';
+export async function isAdminLoggedIn(): Promise<boolean> {
+  try {
+    await requireAdmin();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-export function loginAdmin(password: string): boolean {
-  if (password !== 'admin123') return false;
-  localStorage.setItem(ADMIN_SESSION_KEY, 'logged-in');
-  return true;
+export async function loginAdmin(request: PasswordAuthRequest): Promise<void> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.auth.signInWithPassword(request);
+  if (error) throw new Error(error.message);
+  if (!isAdminUser(data.user)) {
+    await supabase.auth.signOut();
+    throw new Error('当前账号不是管理员');
+  }
 }
 
-export function logoutAdmin(): void {
-  localStorage.removeItem(ADMIN_SESSION_KEY);
+export async function logoutAdmin(): Promise<void> {
+  await supabase.auth.signOut();
 }
 
 export async function getAdminDashboard(): Promise<AdminDashboardStats> {
-  assertSupabaseConfigured();
+  await requireAdmin();
   const [users, orders, pets, walkerAuth] = await Promise.all([
     supabase.from('users').select('*'),
     supabase.from('orders').select('*'),
@@ -115,7 +124,7 @@ export async function getAdminDashboard(): Promise<AdminDashboardStats> {
 }
 
 export async function listAdminOrders(status: 'all' | `${OrderStatus}` = 'all'): Promise<AdminOrderBundle[]> {
-  assertSupabaseConfigured();
+  await requireAdmin();
   let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
   if (status !== 'all') query = query.eq('order_status', Number(status));
   const { data, error } = await query;
@@ -124,17 +133,19 @@ export async function listAdminOrders(status: 'all' | `${OrderStatus}` = 'all'):
 }
 
 export async function markAdminOrderException(_ownerUserId: ID, orderId: ID): Promise<void> {
+  await requireAdmin();
   const { error } = await supabase.from('orders').update({ exception_flag: 1, order_status: OrderStatus.ExceptionHandling }).eq('id', orderId);
   if (error) throw new Error(error.message);
 }
 
 export async function cancelAdminOrder(_ownerUserId: ID, orderId: ID): Promise<void> {
+  await requireAdmin();
   const { error } = await supabase.from('orders').update({ order_status: OrderStatus.Cancelled, cancel_reason: '后台手动取消' }).eq('id', orderId);
   if (error) throw new Error(error.message);
 }
 
 export async function listAdminPets(status: 'all' | `${PetReviewStatus}` = 'all'): Promise<AdminPetRecord[]> {
-  assertSupabaseConfigured();
+  await requireAdmin();
   let query = supabase.from('pets').select('*').eq('is_deleted', 0).order('created_at', { ascending: false });
   if (status !== 'all') query = query.eq('review_status', Number(status));
   const { data, error } = await query;
@@ -146,6 +157,7 @@ export async function listAdminPets(status: 'all' | `${PetReviewStatus}` = 'all'
 }
 
 export async function reviewAdminPet(_ownerUserId: ID, petId: ID, approved: boolean): Promise<void> {
+  await requireAdmin();
   const { error } = await supabase
     .from('pets')
     .update({
@@ -158,14 +170,12 @@ export async function reviewAdminPet(_ownerUserId: ID, petId: ID, approved: bool
 }
 
 export async function listAdminComplaints(): Promise<AdminComplaintRecord[]> {
-  assertSupabaseConfigured();
+  await requireAdmin();
   const { data, error } = await supabase.from('complaints').select('*').order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
   const complaints = (data ?? []).map(mapComplaint);
   const orderIds = Array.from(new Set(complaints.map((item) => item.orderId)));
-  const orders = orderIds.length
-    ? await supabase.from('orders').select('*').in('id', orderIds)
-    : { data: [], error: null };
+  const orders = orderIds.length ? await supabase.from('orders').select('*').in('id', orderIds) : { data: [], error: null };
   if (orders.error) throw new Error(orders.error.message);
   const orderMap = new Map((orders.data ?? []).map((row) => [String(row.id), mapOrder(row)]));
   return complaints.map((complaint) => ({
@@ -176,12 +186,13 @@ export async function listAdminComplaints(): Promise<AdminComplaintRecord[]> {
 }
 
 export async function updateAdminComplaintStatus(_ownerUserId: ID, complaintId: ID, status: ComplaintStatus): Promise<void> {
+  await requireAdmin();
   const { error } = await supabase.from('complaints').update({ complaint_status: status }).eq('id', complaintId);
   if (error) throw new Error(error.message);
 }
 
 export async function listWalkerApplications(): Promise<WalkerApplication[]> {
-  assertSupabaseConfigured();
+  await requireAdmin();
   const { data, error } = await supabase.from('walker_auth').select('*').order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []).map((row) => {
@@ -200,6 +211,7 @@ export async function listWalkerApplications(): Promise<WalkerApplication[]> {
 }
 
 export async function reviewWalkerApplication(id: ID, approved: boolean): Promise<void> {
+  await requireAdmin();
   const { error } = await supabase
     .from('walker_auth')
     .update({
@@ -232,4 +244,16 @@ async function hydrateOrders(orders: Order[]): Promise<AdminOrderBundle[]> {
       };
     })
   );
+}
+
+async function requireAdmin(): Promise<SupabaseUser> {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw new Error(error.message);
+  if (!isAdminUser(data.user)) throw new Error('需要管理员权限');
+  return data.user;
+}
+
+function isAdminUser(user: SupabaseUser | null): user is SupabaseUser {
+  return user?.app_metadata?.role === 'admin';
 }

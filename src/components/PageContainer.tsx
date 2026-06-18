@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { Children, type ReactNode } from 'react';
+import { useScrollReveal } from '../hooks/useScrollReveal';
 import { BottomNav } from './BottomNav';
 import { TopBar } from './TopBar';
 
@@ -17,10 +18,17 @@ export function PageContainer({
   showBottomNav = true,
   action
 }: PageContainerProps) {
+  const contentRef = useScrollReveal<HTMLElement>();
+  const revealedChildren = Children.map(children, (child) => (
+    <div className="reveal-item" data-reveal>
+      {child}
+    </div>
+  ));
+
   return (
     <div className="page-shell">
       <TopBar title={title} subtitle={subtitle} action={action} />
-      <main className="page-content">{children}</main>
+      <main ref={contentRef} className="page-content reveal-stack">{revealedChildren}</main>
       {showBottomNav ? <BottomNav /> : null}
     </div>
   );

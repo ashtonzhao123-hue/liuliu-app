@@ -5,6 +5,7 @@ import { submitArriveCheckpoint } from '../../api/walker';
 import { MockMap } from '../../components/MockMap';
 import { PageContainer } from '../../components/PageContainer';
 import { useAppStore } from '../../stores/useAppStore';
+import { readOptionalImage } from '../../utils/image';
 
 export function WalkerArrivePage() {
   const { id } = useParams();
@@ -29,7 +30,7 @@ export function WalkerArrivePage() {
       <MockMap />
       <label className="upload-placeholder">
         {photoUrl ? '已选择到达照片' : '拍照上传'}
-        <input hidden type="file" accept="image/*" onChange={(event) => void readImage(event.currentTarget.files?.[0]).then(setPhotoUrl)} />
+        <input hidden type="file" accept="image/*" onChange={(event) => void readOptionalImage(event.currentTarget.files?.[0]).then(setPhotoUrl).catch((err) => Toast.show(err instanceof Error ? err.message : '图片读取失败'))} />
       </label>
       <Form layout="vertical" className="owner-form">
         <Form.Item label="备注">
@@ -41,13 +42,4 @@ export function WalkerArrivePage() {
       </Button>
     </PageContainer>
   );
-}
-
-function readImage(file?: File): Promise<string | undefined> {
-  if (!file) return Promise.resolve(undefined);
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.readAsDataURL(file);
-  });
 }

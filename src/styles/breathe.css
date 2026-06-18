@@ -1,0 +1,156 @@
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.015);
+    opacity: 0.96;
+  }
+}
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: var(--shadow-md), 0 0 0 0 rgba(141, 179, 196, 0.3);
+  }
+  50% {
+    box-shadow: var(--shadow-lg), 0 0 0 7px rgba(141, 179, 196, 0);
+  }
+}
+
+@keyframes spring-select {
+  0% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.055);
+  }
+  72% {
+    transform: scale(0.985);
+  }
+  100% {
+    transform: scale(1.025);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-4px);
+  }
+  40%,
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes route-bloom {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
+}
+
+.card-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-shine::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.54), transparent);
+  pointer-events: none;
+}
+
+.card-3d {
+  transform: translateZ(0);
+  transition:
+    transform var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out);
+}
+
+.animate-breathe {
+  animation: breathe var(--duration-breathe) var(--ease-breathe) infinite;
+}
+
+.animate-float {
+  animation: float-soft 3.4s var(--ease-breathe) infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2.2s var(--ease-breathe) infinite;
+}
+
+.reveal-stack {
+  display: block;
+}
+
+.reveal-item {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.reveal-item.is-visible {
+  animation: fadeInUp 520ms var(--ease-out) both;
+}
+
+@media (hover: hover) {
+  .card-3d:hover {
+    transform: perspective(800px) rotateX(0.8deg) rotateY(-0.45deg) translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
