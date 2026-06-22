@@ -107,6 +107,23 @@ export interface ComplaintInput {
   content: string;
 }
 
+export interface ActiveWalkerInfo {
+  count: number;
+  level: 'plenty' | 'few' | 'none';
+}
+
+export async function getActiveWalkerCount(): Promise<ActiveWalkerInfo> {
+  const { data, error } = await supabase.rpc('get_active_walker_count');
+  if (error) {
+    console.warn('Failed to get active walker count', error);
+    return { count: 0, level: 'none' };
+  }
+
+  const numericCount = Number(data);
+  const count = Number.isFinite(numericCount) ? Math.max(0, Math.trunc(numericCount)) : 0;
+  return { count, level: count >= 3 ? 'plenty' : count >= 1 ? 'few' : 'none' };
+}
+
 export function getPetBreedLabel(code: string): string {
   return PET_BREEDS.find((breed) => breed.code === code)?.label ?? code;
 }

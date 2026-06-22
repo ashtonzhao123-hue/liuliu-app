@@ -67,6 +67,20 @@ export function getWalkerOnlineStatus(walkerUserId: ID): boolean {
 
 export function setWalkerOnlineStatus(walkerUserId: ID, online: boolean): void {
   localStorage.setItem(`${WALKER_STATUS_PREFIX}${walkerUserId}`, online ? 'online' : 'resting');
+  markWalkerActive(walkerUserId);
+}
+
+export function markWalkerActive(walkerUserId: ID): void {
+  void supabase
+    .from('users')
+    .update({ walker_last_active_at: new Date().toISOString() })
+    .eq('id', walkerUserId)
+    .then(
+      ({ error }) => {
+        if (error) console.warn('Failed to update walker activity', error);
+      },
+      (error) => console.warn('Failed to update walker activity', error)
+    );
 }
 
 export async function listAvailableOrders(): Promise<WalkerOrderBundle[]> {
@@ -111,7 +125,9 @@ export async function acceptWalkerOrder(orderId: ID, walkerUserId: ID, walkerNic
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error('杩欏崟宸茬粡琚帴璧板暒锛岀湅鐪嬪叾浠栬鍗曞惂');
-  return mapOrder(data);
+  const order = mapOrder(data);
+  markWalkerActive(walkerUserId);
+  return order;
 }
 
 export async function submitArriveCheckpoint(orderId: ID, walkerUserId: ID, note: string, photoUrl?: string): Promise<Order> {
@@ -202,7 +218,7 @@ export async function finishWalkerService(orderId: ID, walkerUserId: ID, report:
     )
   );
   if (media.error) throw new Error(media.error.message);
-  return updateOrder(orderId, {
+  const order = await updateOrder(orderId, {
     order_status: OrderStatus.PendingOwnerConfirm,
     end_time: new Date().toISOString(),
     report_photos: photoUrls,
@@ -213,6 +229,8 @@ export async function finishWalkerService(orderId: ID, walkerUserId: ID, report:
     walk_duration: bundle.order.serviceDurationMinutes,
     report_submitted_at: new Date().toISOString()
   });
+  markWalkerActive(walkerUserId);
+  return order;
 }
 export async function getWalkerStats(walkerUserId: ID): Promise<WalkerStats> {
   assertSupabaseConfigured();

@@ -144,6 +144,7 @@ export interface User extends TimestampFields, SoftDeleteFields {
   userStatus: UserStatus;
   registerSource: string;
   lastLoginAt?: ISODateTime;
+  walkerLastActiveAt?: string;
 }
 
 export interface UserRealAuth extends TimestampFields {

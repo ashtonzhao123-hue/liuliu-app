@@ -34,6 +34,7 @@ export function mapUser(row: Row): User {
     userStatus: row.user_status ?? UserStatus.Normal,
     registerSource: row.register_source ?? 'pwa',
     lastLoginAt: row.last_login_at ?? undefined,
+    walkerLastActiveAt: row.walker_last_active_at ?? undefined,
     createdAt: row.created_at ?? new Date().toISOString(),
     updatedAt: row.updated_at ?? new Date().toISOString(),
     isDeleted: isDeletedValue(row.is_deleted)
@@ -51,6 +52,7 @@ export function userToRow(user: Partial<User> & { authId?: string; email?: strin
     user_status: user.userStatus,
     register_source: user.registerSource,
     last_login_at: user.lastLoginAt,
+    walker_last_active_at: user.walkerLastActiveAt,
     is_deleted: softDeleteToNumber(user.isDeleted)
   });
 }
