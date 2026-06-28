@@ -6,6 +6,7 @@ import {
   getWalkerOnlineStatus,
   getWalkerStats,
   listAvailableOrders,
+  markWalkerActive,
   setWalkerOnlineStatus,
   type WalkerOrderBundle,
   type WalkerStats
@@ -38,6 +39,7 @@ export function WalkerHomePage() {
   useEffect(() => {
     if (!currentUser) return;
     setOnline(getWalkerOnlineStatus(currentUser.id));
+    markWalkerActive(currentUser.id);
     void Promise.all([listAvailableOrders(), getWalkerStats(currentUser.id)])
       .then(([availableOrders, nextStats]) => {
         setOrders(availableOrders);
@@ -45,6 +47,17 @@ export function WalkerHomePage() {
       })
       .catch((error) => notify(getFriendlyErrorMessage(error, '接单大厅暂时没加载出来，稍后再看看？'), 'error'))
       .finally(() => setLoading(false));
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        markWalkerActive(currentUser.id);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [currentUser]);
 
   function handleOnlineChange(checked: boolean) {

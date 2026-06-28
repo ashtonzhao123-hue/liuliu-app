@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['pwa-192x192.svg', 'pwa-512x512.svg'],
       manifest: {
         name: '遛狗服务',
@@ -36,5 +36,16 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico}']
       }
     })
-  ]
+  ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'antd-mobile': ['antd-mobile', 'antd-mobile-icons'],
+          supabase: ['@supabase/supabase-js']
+        }
+      }
+    }
+  }
 });

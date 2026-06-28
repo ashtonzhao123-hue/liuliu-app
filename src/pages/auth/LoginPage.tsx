@@ -8,13 +8,14 @@ import { getFriendlyErrorMessage } from '../../utils/errors';
 import { notify } from '../../utils/notify';
 
 const OTP_LENGTH = 6;
+const PHONE_STORAGE_KEY = 'liuliu_last_phone';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const sendLoginCode = useAppStore((state) => state.sendLoginCode);
   const loginWithPhoneOtp = useAppStore((state) => state.loginWithPhoneOtp);
   const loginWithPassword = useAppStore((state) => state.loginWithPassword);
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(() => localStorage.getItem(PHONE_STORAGE_KEY) ?? '');
   const [otpDigits, setOtpDigits] = useState<string[]>(Array.from({ length: OTP_LENGTH }, () => ''));
   const [otpSent, setOtpSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -69,6 +70,7 @@ export function LoginPage() {
     try {
       setSending(true);
       await sendLoginCode({ phone });
+      localStorage.setItem(PHONE_STORAGE_KEY, phone);
       setOtpSent(true);
       setOtpDigits(Array.from({ length: OTP_LENGTH }, () => ''));
       verifyingTokenRef.current = '';
@@ -169,7 +171,14 @@ export function LoginPage() {
         <div className="phone-login">
           <label className="phone-field">
             <span className="phone-field__prefix">+86</span>
-            <input inputMode="numeric" autoComplete="tel-national" placeholder="手机号" value={phone} onChange={(event) => updatePhone(event.target.value)} />
+            <input
+              autoFocus
+              inputMode="numeric"
+              autoComplete="tel-national"
+              placeholder="手机号"
+              value={formatPhoneDisplay(phone)}
+              onChange={(event) => updatePhone(event.target.value)}
+            />
           </label>
 
           {otpSent ? (
@@ -196,6 +205,10 @@ export function LoginPage() {
           <Button block color="primary" size="large" loading={sending} disabled={!phoneValid || countdown > 0 || sending} onClick={() => void handleSendOtp()}>
             {countdown > 0 ? `${countdown}s 后重发` : otpSent ? '重新获取验证码' : '获取验证码'}
           </Button>
+
+          {phone.length === 11 && agreed && !otpSent && countdown === 0 ? (
+            <div className="phone-ready-hint">手机号有效，点上面「获取验证码」发送</div>
+          ) : null}
 
           {otpSent ? (
             <Button block color="primary" size="large" loading={verifying} disabled={otpToken.length !== OTP_LENGTH || verifying} onClick={() => void handleVerifyOtp(otpToken)}>
@@ -239,4 +252,11 @@ export function LoginPage() {
       </section>
     </main>
   );
+}
+
+function formatPhoneDisplay(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 7) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+  return `${digits.slice(0, 3)} ${digits.slice(3, 7)} ${digits.slice(7)}`;
 }

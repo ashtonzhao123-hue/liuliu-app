@@ -3,6 +3,8 @@ import { Button, Card, Space, Toast } from 'antd-mobile';
 import { useNavigate, useParams } from 'react-router-dom';
 import { confirmOrderComplete, getOrderBundle } from '../../api/owner';
 import { PageContainer } from '../../components/PageContainer';
+import { PWAInstallPrompt } from '../../components/PWAInstallPrompt';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { useAppStore } from '../../stores/useAppStore';
 import type { Order, OrderMedia } from '../../types';
 import { formatDateTime } from '../../utils/format';
@@ -13,6 +15,8 @@ export function ConfirmOrderPage() {
   const currentUser = useAppStore((state) => state.currentUser);
   const [order, setOrder] = useState<Order>();
   const [media, setMedia] = useState<OrderMedia[]>([]);
+  const [installOpen, setInstallOpen] = useState(false);
+  const install = usePWAInstall();
 
   useEffect(() => {
     if (!currentUser || !id) return;
@@ -26,6 +30,16 @@ export function ConfirmOrderPage() {
     if (!currentUser || !order) return;
     await confirmOrderComplete(currentUser.id, order.id);
     Toast.show('服务已确认完成');
+    if (install.canShow) {
+      setInstallOpen(true);
+      return;
+    }
+    navigate(`/owner/orders/${order.id}`, { replace: true });
+  }
+
+  function closeInstallPrompt() {
+    if (!order) return;
+    setInstallOpen(false);
     navigate(`/owner/orders/${order.id}`, { replace: true });
   }
 
@@ -55,6 +69,7 @@ export function ConfirmOrderPage() {
           有问题，去投诉
         </Button>
       </Space>
+      <PWAInstallPrompt visible={installOpen} onClose={closeInstallPrompt} trigger="order_success" install={install} />
     </PageContainer>
   );
 }

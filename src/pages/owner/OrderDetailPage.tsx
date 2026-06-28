@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { cancelOrder, getOrderBundle, simulateAcceptOrder, simulateFinishService, simulatePayOrder, simulateStartService } from '../../api/owner';
 import { OrderStatusSteps } from '../../components/OrderStatusSteps';
 import { PageContainer } from '../../components/PageContainer';
+import { ShareReportCard } from '../../components/ShareReportCard';
 import { OrderDetailSkeleton } from '../../components/Skeleton';
 import { useAppStore } from '../../stores/useAppStore';
 import { OrderStatus, type Order, type Review } from '../../types';
@@ -238,6 +239,7 @@ function OrderActions({
 
 function WalkReportCard({ order }: { order: Order }) {
   const photos = order.reportPhotos ?? [];
+  const [shareOpen, setShareOpen] = useState(false);
   return (
     <Card className="summary-card walk-report-card" title="遛狗报告">
       {photos.length ? (
@@ -258,6 +260,17 @@ function WalkReportCard({ order }: { order: Order }) {
         <Tag color={order.hasPee ? 'success' : 'default'}>{order.hasPee ? '已尿尿' : '未记录尿尿'}</Tag>
       </div>
       {order.walkerNote ? <p>{order.walkerNote}</p> : null}
+      <Button fill="outline" size="small" onClick={() => setShareOpen(true)}>
+        保存遛狗日记
+      </Button>
+      <ShareReportCard
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        petName={order.petNameSnapshot}
+        distance={`${order.walkDistance?.toFixed(1) ?? '2.0'}km`}
+        duration={`${order.walkDuration ?? order.serviceDurationMinutes}分钟`}
+        photoUrl={photos[0]}
+      />
     </Card>
   );
 }

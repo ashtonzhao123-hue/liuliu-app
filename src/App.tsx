@@ -1,32 +1,35 @@
-import { useEffect, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminGuard } from './components/AdminGuard';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { AdminHomePage } from './pages/admin/AdminHomePage';
+import { NetworkBanner } from './components/NetworkBanner';
+import { UpdatePrompt } from './components/UpdatePrompt';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RoleSelectPage } from './pages/auth/RoleSelectPage';
-import { AddressFormPage } from './pages/owner/AddressFormPage';
-import { AddressListPage } from './pages/owner/AddressListPage';
-import { ComplaintPage } from './pages/owner/ComplaintPage';
-import { ConfirmOrderPage } from './pages/owner/ConfirmOrderPage';
-import { CreateOrderPage } from './pages/owner/CreateOrderPage';
-import { LiveOrderPage } from './pages/owner/LiveOrderPage';
-import { OrderDetailPage } from './pages/owner/OrderDetailPage';
-import { OrderListPage } from './pages/owner/OrderListPage';
 import { OwnerHomePage } from './pages/owner/OwnerHomePage';
-import { OwnerProfilePage } from './pages/owner/OwnerProfilePage';
-import { PetFormPage } from './pages/owner/PetFormPage';
-import { PetListPage } from './pages/owner/PetListPage';
-import { ReviewPage } from './pages/owner/ReviewPage';
-import { WalkerArrivePage } from './pages/walker/WalkerArrivePage';
-import { WalkerFinishPage } from './pages/walker/WalkerFinishPage';
-import { WalkerGoPage } from './pages/walker/WalkerGoPage';
-import { WalkerHistoryPage } from './pages/walker/WalkerHistoryPage';
 import { WalkerHomePage } from './pages/walker/WalkerHomePage';
-import { WalkerLivePage } from './pages/walker/WalkerLivePage';
-import { WalkerOrderDetailPage } from './pages/walker/WalkerOrderDetailPage';
-import { WalkerProfilePage } from './pages/walker/WalkerProfilePage';
 import { useAppStore } from './stores/useAppStore';
+
+const AddressFormPage = lazy(() => import('./pages/owner/AddressFormPage').then((module) => ({ default: module.AddressFormPage })));
+const AddressListPage = lazy(() => import('./pages/owner/AddressListPage').then((module) => ({ default: module.AddressListPage })));
+const AdminHomePage = lazy(() => import('./pages/admin/AdminHomePage').then((module) => ({ default: module.AdminHomePage })));
+const ComplaintPage = lazy(() => import('./pages/owner/ComplaintPage').then((module) => ({ default: module.ComplaintPage })));
+const ConfirmOrderPage = lazy(() => import('./pages/owner/ConfirmOrderPage').then((module) => ({ default: module.ConfirmOrderPage })));
+const CreateOrderPage = lazy(() => import('./pages/owner/CreateOrderPage').then((module) => ({ default: module.CreateOrderPage })));
+const LiveOrderPage = lazy(() => import('./pages/owner/LiveOrderPage').then((module) => ({ default: module.LiveOrderPage })));
+const OrderDetailPage = lazy(() => import('./pages/owner/OrderDetailPage').then((module) => ({ default: module.OrderDetailPage })));
+const OrderListPage = lazy(() => import('./pages/owner/OrderListPage').then((module) => ({ default: module.OrderListPage })));
+const OwnerProfilePage = lazy(() => import('./pages/owner/OwnerProfilePage').then((module) => ({ default: module.OwnerProfilePage })));
+const PetFormPage = lazy(() => import('./pages/owner/PetFormPage').then((module) => ({ default: module.PetFormPage })));
+const PetListPage = lazy(() => import('./pages/owner/PetListPage').then((module) => ({ default: module.PetListPage })));
+const ReviewPage = lazy(() => import('./pages/owner/ReviewPage').then((module) => ({ default: module.ReviewPage })));
+const WalkerArrivePage = lazy(() => import('./pages/walker/WalkerArrivePage').then((module) => ({ default: module.WalkerArrivePage })));
+const WalkerFinishPage = lazy(() => import('./pages/walker/WalkerFinishPage').then((module) => ({ default: module.WalkerFinishPage })));
+const WalkerGoPage = lazy(() => import('./pages/walker/WalkerGoPage').then((module) => ({ default: module.WalkerGoPage })));
+const WalkerHistoryPage = lazy(() => import('./pages/walker/WalkerHistoryPage').then((module) => ({ default: module.WalkerHistoryPage })));
+const WalkerLivePage = lazy(() => import('./pages/walker/WalkerLivePage').then((module) => ({ default: module.WalkerLivePage })));
+const WalkerOrderDetailPage = lazy(() => import('./pages/walker/WalkerOrderDetailPage').then((module) => ({ default: module.WalkerOrderDetailPage })));
+const WalkerProfilePage = lazy(() => import('./pages/walker/WalkerProfilePage').then((module) => ({ default: module.WalkerProfilePage })));
 
 export function App() {
   const hydrateAuth = useAppStore((state) => state.hydrateAuth);
@@ -37,36 +40,40 @@ export function App() {
 
   return (
     <ErrorBoundary>
-      <Routes>
-        <Route path="/" element={<RootRedirect />} />
-        <Route path="/login" element={<PublicOnlyRoute element={<LoginPage />} />} />
-        <Route path="/role-select" element={<ProtectedRoute element={<RoleSelectPage />} allowUnselectedRole />} />
-        <Route path="/owner" element={<ProtectedRoute element={<OwnerHomePage />} />} />
-        <Route path="/owner/pets" element={<ProtectedRoute element={<PetListPage />} />} />
-        <Route path="/owner/pets/new" element={<ProtectedRoute element={<PetFormPage />} />} />
-        <Route path="/owner/pets/:id/edit" element={<ProtectedRoute element={<PetFormPage />} />} />
-        <Route path="/owner/addresses" element={<ProtectedRoute element={<AddressListPage />} />} />
-        <Route path="/owner/addresses/new" element={<ProtectedRoute element={<AddressFormPage />} />} />
-        <Route path="/owner/addresses/:id/edit" element={<ProtectedRoute element={<AddressFormPage />} />} />
-        <Route path="/owner/orders/new" element={<ProtectedRoute element={<CreateOrderPage />} />} />
-        <Route path="/owner/orders" element={<ProtectedRoute element={<OrderListPage />} />} />
-        <Route path="/owner/orders/:id" element={<ProtectedRoute element={<OrderDetailPage />} />} />
-        <Route path="/owner/orders/:id/live" element={<ProtectedRoute element={<LiveOrderPage />} />} />
-        <Route path="/owner/orders/:id/confirm" element={<ProtectedRoute element={<ConfirmOrderPage />} />} />
-        <Route path="/owner/orders/:id/review" element={<ProtectedRoute element={<ReviewPage />} />} />
-        <Route path="/owner/orders/:id/complaint" element={<ProtectedRoute element={<ComplaintPage />} />} />
-        <Route path="/owner/profile" element={<ProtectedRoute element={<OwnerProfilePage />} />} />
-        <Route path="/walker" element={<ProtectedRoute element={<WalkerHomePage />} />} />
-        <Route path="/walker/orders/:id" element={<ProtectedRoute element={<WalkerOrderDetailPage />} />} />
-        <Route path="/walker/orders/:id/go" element={<ProtectedRoute element={<WalkerGoPage />} />} />
-        <Route path="/walker/orders/:id/arrive" element={<ProtectedRoute element={<WalkerArrivePage />} />} />
-        <Route path="/walker/orders/:id/live" element={<ProtectedRoute element={<WalkerLivePage />} />} />
-        <Route path="/walker/orders/:id/finish" element={<ProtectedRoute element={<WalkerFinishPage />} />} />
-        <Route path="/walker/history" element={<ProtectedRoute element={<WalkerHistoryPage />} />} />
-        <Route path="/walker/profile" element={<ProtectedRoute element={<WalkerProfilePage />} />} />
-        <Route path="/admin" element={<AdminGuard><AdminHomePage /></AdminGuard>} />
-        <Route path="*" element={<RootRedirect />} />
-      </Routes>
+      <NetworkBanner />
+      <UpdatePrompt />
+      <Suspense fallback={<RouteLoading />}>
+        <Routes>
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="/login" element={<PublicOnlyRoute element={<LoginPage />} />} />
+          <Route path="/role-select" element={<ProtectedRoute element={<RoleSelectPage />} allowUnselectedRole />} />
+          <Route path="/owner" element={<ProtectedRoute element={<OwnerHomePage />} />} />
+          <Route path="/owner/pets" element={<ProtectedRoute element={<PetListPage />} />} />
+          <Route path="/owner/pets/new" element={<ProtectedRoute element={<PetFormPage />} />} />
+          <Route path="/owner/pets/:id/edit" element={<ProtectedRoute element={<PetFormPage />} />} />
+          <Route path="/owner/addresses" element={<ProtectedRoute element={<AddressListPage />} />} />
+          <Route path="/owner/addresses/new" element={<ProtectedRoute element={<AddressFormPage />} />} />
+          <Route path="/owner/addresses/:id/edit" element={<ProtectedRoute element={<AddressFormPage />} />} />
+          <Route path="/owner/orders/new" element={<ProtectedRoute element={<CreateOrderPage />} />} />
+          <Route path="/owner/orders" element={<ProtectedRoute element={<OrderListPage />} />} />
+          <Route path="/owner/orders/:id" element={<ProtectedRoute element={<OrderDetailPage />} />} />
+          <Route path="/owner/orders/:id/live" element={<ProtectedRoute element={<LiveOrderPage />} />} />
+          <Route path="/owner/orders/:id/confirm" element={<ProtectedRoute element={<ConfirmOrderPage />} />} />
+          <Route path="/owner/orders/:id/review" element={<ProtectedRoute element={<ReviewPage />} />} />
+          <Route path="/owner/orders/:id/complaint" element={<ProtectedRoute element={<ComplaintPage />} />} />
+          <Route path="/owner/profile" element={<ProtectedRoute element={<OwnerProfilePage />} />} />
+          <Route path="/walker" element={<ProtectedRoute element={<WalkerHomePage />} />} />
+          <Route path="/walker/orders/:id" element={<ProtectedRoute element={<WalkerOrderDetailPage />} />} />
+          <Route path="/walker/orders/:id/go" element={<ProtectedRoute element={<WalkerGoPage />} />} />
+          <Route path="/walker/orders/:id/arrive" element={<ProtectedRoute element={<WalkerArrivePage />} />} />
+          <Route path="/walker/orders/:id/live" element={<ProtectedRoute element={<WalkerLivePage />} />} />
+          <Route path="/walker/orders/:id/finish" element={<ProtectedRoute element={<WalkerFinishPage />} />} />
+          <Route path="/walker/history" element={<ProtectedRoute element={<WalkerHistoryPage />} />} />
+          <Route path="/walker/profile" element={<ProtectedRoute element={<WalkerProfilePage />} />} />
+          <Route path="/admin" element={<AdminGuard><AdminHomePage /></AdminGuard>} />
+          <Route path="*" element={<RootRedirect />} />
+        </Routes>
+      </Suspense>
     </ErrorBoundary>
   );
 }
@@ -122,14 +129,11 @@ function ProtectedRoute({
 
 function RouteLoading() {
   return (
-    <main className="auth-page">
-      <section className="auth-panel">
-        <div className="song-dog-mark song-dog-mark--small" aria-hidden="true">
-          <img src="/song-login-reference.jpg" alt="" />
-        </div>
-        <p className="auth-subtitle">正在铺开画卷...</p>
-      </section>
-    </main>
+    <div className="page-shell">
+      <main className="page-body">
+        <div className="skeleton-list"><span /><span /><span /></div>
+      </main>
+    </div>
   );
 }
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Card, Space, Tag } from 'antd-mobile';
 import { EnvironmentOutline, FileOutline, RightOutline, UserOutline } from 'antd-mobile-icons';
 import { useNavigate } from 'react-router-dom';
-import { listAddresses, listOrders, listPets } from '../../api/owner';
+import { getActiveWalkerCount, listAddresses, listOrders, listPets, type ActiveWalkerInfo } from '../../api/owner';
 import { OwnerActionGrid } from '../../components/OwnerActionGrid';
 import { PageContainer } from '../../components/PageContainer';
 import { useAppStore } from '../../stores/useAppStore';
@@ -18,14 +18,16 @@ export function OwnerHomePage() {
   const [pets, setPets] = useState<Pet[]>([]);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [walkerActivity, setWalkerActivity] = useState<ActiveWalkerInfo>({ count: 0, level: 'none' });
 
   useEffect(() => {
     if (!currentUser) return;
-    void Promise.all([listPets(currentUser.id), listAddresses(currentUser.id), listOrders(currentUser.id)]).then(
-      ([petList, addressList, orderList]) => {
+    void Promise.all([listPets(currentUser.id), listAddresses(currentUser.id), listOrders(currentUser.id), getActiveWalkerCount()]).then(
+      ([petList, addressList, orderList, activity]) => {
         setPets(petList);
         setAddresses(addressList);
         setOrders(orderList);
+        setWalkerActivity(activity);
       }
     );
   }, [currentUser]);
@@ -67,6 +69,10 @@ export function OwnerHomePage() {
         <Button className="pulse-cta" color="primary" onClick={() => navigate('/owner/orders/new')}>
           找人遛
         </Button>
+        <div className={`walker-activity-hint walker-activity-hint--${walkerActivity.level}`}>
+          {walkerActivity.level !== 'none' ? <span className={`walker-activity-dot walker-activity-dot--${walkerActivity.level}`} aria-hidden="true" /> : null}
+          <span>{getWalkerActivityMessage(walkerActivity)}</span>
+        </div>
       </section>
 
       <OwnerActionGrid
@@ -110,4 +116,10 @@ export function OwnerHomePage() {
       </Card>
     </PageContainer>
   );
+}
+
+function getWalkerActivityMessage(activity: ActiveWalkerInfo): string {
+  if (activity.level === 'plenty') return `附近${activity.count}位遛遛侠最近活跃，快有人来`;
+  if (activity.level === 'few') return `附近${activity.count}位遛遛侠最近活跃，可能要等等`;
+  return '附近暂无活跃遛遛侠，建议预约稍后时段';
 }

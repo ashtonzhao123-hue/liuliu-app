@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       <main className="error-boundary" role="alert">
         <section className="error-boundary__panel">
           <h1>页面开了个小差</h1>
-          <p>请刷新后再试一次。如果仍然出现问题，可以稍后回来。</p>
+          <p>可能网络不太稳定，检查一下 WiFi 或流量，然后刷新试试。如果还是不行，稍后再来。</p>
           <Button block color="primary" onClick={() => window.location.reload()}>
             刷新页面
           </Button>

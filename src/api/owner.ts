@@ -113,6 +113,7 @@ export interface ActiveWalkerInfo {
 }
 
 export async function getActiveWalkerCount(): Promise<ActiveWalkerInfo> {
+  assertSupabaseConfigured();
   const { data, error } = await supabase.rpc('get_active_walker_count');
   if (error) {
     console.warn('Failed to get active walker count', error);
