@@ -44,7 +44,7 @@ export function WalkerHomePage() {
     if (!currentUser) return;
     setOnline(getWalkerOnlineStatus(currentUser.id));
     markWalkerActive(currentUser.id);
-    void Promise.all([listAvailableOrders(), getWalkerStats(currentUser.id), getWalkerCredentialStatus(currentUser.id)])
+    void Promise.all([listAvailableOrders(currentUser.id), getWalkerStats(currentUser.id), getWalkerCredentialStatus(currentUser.id)])
       .then(([availableOrders, nextStats, credentialStatus]) => {
         setOrders(availableOrders);
         setStats(nextStats);

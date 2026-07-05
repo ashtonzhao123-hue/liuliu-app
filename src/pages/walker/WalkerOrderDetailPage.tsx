@@ -53,6 +53,11 @@ export function WalkerOrderDetailPage() {
 
   const { order, address } = bundle;
   const canGo = [OrderStatus.Accepted, OrderStatus.WalkerArrived, OrderStatus.InService].includes(order.orderStatus);
+  const isAssignedWalker = order.walkerUserId === currentUser?.id;
+  const canSeePrivateContact =
+    isAssignedWalker &&
+    [OrderStatus.Accepted, OrderStatus.WalkerArrived, OrderStatus.InService, OrderStatus.PendingOwnerConfirm, OrderStatus.Completed].includes(order.orderStatus);
+  const visibleAddress = canSeePrivateContact ? order.addressSnapshot : address?.communityName ?? '接单后查看详细地址';
 
   return (
     <PageContainer title="订单详情" subtitle={getOrderStatusText(order.orderStatus)}>
@@ -63,12 +68,18 @@ export function WalkerOrderDetailPage() {
         <p>宠物：{order.breedSnapshot}/A级 · {order.petNameSnapshot}</p>
         <p>时长：{order.serviceDurationMinutes}分钟</p>
         <p>预约：{formatDateTime(order.appointmentTime)}</p>
-        <p>地址：{order.addressSnapshot}</p>
+        <p>地址：{visibleAddress}</p>
         <p>备注：{order.specialRequirements || '无'}</p>
       </Card>
-      <Card className="summary-card" title="主人信息">
-        <p>{order.ownerNicknameSnapshot} · {address?.contactName ?? '联系人'} · {address?.contactMobile ?? '手机号待确认'}</p>
-      </Card>
+      {canSeePrivateContact ? (
+        <Card className="summary-card" title="主人信息">
+          <p>{order.ownerNicknameSnapshot} · {address?.contactName ?? '联系人'} · {address?.contactMobile ?? '手机号待确认'}</p>
+        </Card>
+      ) : (
+        <Card className="summary-card" title="主人信息">
+          <p>接单并等待主人支付后，再展示联系人和详细地址。</p>
+        </Card>
+      )}
       <Card className="summary-card" title="收益信息">
         <div className="price-row"><span>订单总额</span><strong>{formatMoney(order.amountTotal)}</strong></div>
         <div className="price-row"><span>平台抽成</span><strong>{formatMoney(order.platformCommission)}</strong></div>

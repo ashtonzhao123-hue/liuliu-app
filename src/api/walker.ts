@@ -82,9 +82,11 @@ export function markWalkerActive(walkerUserId: ID): void {
     );
 }
 
-export async function listAvailableOrders(): Promise<WalkerOrderBundle[]> {
+export async function listAvailableOrders(walkerUserId?: ID): Promise<WalkerOrderBundle[]> {
   assertSupabaseConfigured();
-  const { data, error } = await supabase.from('orders').select('*').eq('order_status', OrderStatus.PendingAccept).order('appointment_time');
+  let query = supabase.from('orders').select('*').eq('order_status', OrderStatus.PendingAccept).order('appointment_time');
+  if (walkerUserId) query = query.neq('owner_id', walkerUserId);
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
   return hydrateBundles((data ?? []).map(mapOrder));
 }
@@ -115,11 +117,21 @@ export async function getWalkerOrderBundle(orderId: ID, walkerUserId?: ID): Prom
 export async function acceptWalkerOrder(orderId: ID, walkerUserId: ID, walkerNickname: string): Promise<Order> {
   assertSupabaseConfigured();
   await assertWalkerCanAccept(walkerUserId);
+  const { data: current, error: fetchError } = await supabase
+    .from('orders')
+    .select('owner_id, order_status')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (fetchError) throw new Error(fetchError.message);
+  if (!current) throw new Error('订单不存在');
+  if (current.owner_id === walkerUserId) throw new Error('不能接自己发布的订单');
+  if (current.order_status !== OrderStatus.PendingAccept) throw new Error('这单已经被接走啦，看看其他订单吧');
   const { data, error } = await supabase
     .from('orders')
     .update({ walker_id: walkerUserId, walker_nickname_snapshot: walkerNickname, order_status: OrderStatus.PendingPay })
     .eq('id', orderId)
     .eq('order_status', OrderStatus.PendingAccept)
+    .neq('owner_id', walkerUserId)
     .select('*')
     .maybeSingle();
   if (error) throw new Error(error.message);

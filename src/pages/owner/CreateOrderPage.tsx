@@ -59,6 +59,7 @@ export function CreateOrderPage() {
   const validAddresses = addresses.filter((address) => address.reviewStatus === AddressReviewStatus.Valid);
   const selectedPet = validPets.find((pet) => pet.id === petId);
   const selectedAddress = validAddresses.find((address) => address.id === addressId);
+  const hasOrderPrerequisites = validPets.length > 0 && validAddresses.length > 0;
 
   useEffect(() => {
     const key = import.meta.env.VITE_HEFENG_WEATHER_KEY;
@@ -88,6 +89,10 @@ export function CreateOrderPage() {
   }, [selectedAddress]);
 
   async function handleSubmit() {
+    if (!hasOrderPrerequisites) {
+      notify('先补齐可下单的宠物和服务地址，再发布订单。');
+      return;
+    }
     if (!currentUser || !addressId || !petId || !appointmentTime) {
       notify('地址、宝贝和时间都选好后，就能发布啦');
       return;
@@ -117,6 +122,24 @@ export function CreateOrderPage() {
   return (
     <PageContainer title="发布订单" subtitle="选好时间，找人遛">
       {location.state ? <div className="prefill-note">已带入上次的宠物、地址和时长，换个时间就能发出。</div> : null}
+
+      {validAddresses.length === 0 ? (
+        <Card className="summary-card" title="先添加服务地址">
+          <p className="muted-text">需要一个审核有效的地址，遛遛侠才能判断距离和路线。</p>
+          <Button size="small" color="primary" onClick={() => navigate('/owner/addresses/new')}>
+            添加地址
+          </Button>
+        </Card>
+      ) : null}
+
+      {validPets.length === 0 ? (
+        <Card className="summary-card" title="先添加可下单的宠物">
+          <p className="muted-text">只有审核通过且风险等级为 A 的宠物可以发布遛狗订单。</p>
+          <Button size="small" color="primary" onClick={() => navigate('/owner/pets/new')}>
+            添加宠物
+          </Button>
+        </Card>
+      ) : null}
 
       <Form layout="vertical" className="owner-form">
         <Form.Item label="服务地址">
@@ -180,7 +203,7 @@ export function CreateOrderPage() {
         <div className="price-row"><span>平台服务费</span><strong>已包含</strong></div>
         <div className="price-row price-row--total"><span>合计</span><strong>{formatMoney(price)}</strong></div>
       </Card>
-      <Button block color="primary" size="large" loading={submitting} disabled={submitting} onClick={handleSubmit}>
+      <Button block color="primary" size="large" loading={submitting} disabled={submitting || !hasOrderPrerequisites} onClick={handleSubmit}>
         {submitting ? '正在发布...' : '提交订单'}
       </Button>
     </PageContainer>

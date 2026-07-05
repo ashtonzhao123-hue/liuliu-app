@@ -1,7 +1,6 @@
 import { supabase, assertSupabaseConfigured } from '../lib/supabase';
 import {
   AddressReviewStatus,
-  CheckpointType,
   ComplaintStatus,
   OrderStatus,
   PayStatus,
@@ -20,7 +19,6 @@ import {
 } from '../types';
 import {
   addressToRow,
-  checkpointToRow,
   complaintToRow,
   mapAddress,
   mapCheckpoint,
@@ -30,11 +28,9 @@ import {
   mapPet,
   mapReview,
   mapTrack,
-  mediaToRow,
   orderToRow,
   petToRow,
-  reviewToRow,
-  trackToRow
+  reviewToRow
 } from './mappers';
 import { getPlatformFeeRate } from '../utils/fee';
 
@@ -327,11 +323,7 @@ export async function createOrder(userId: ID, input: CreateOrderInput): Promise<
 export async function cancelOrder(userId: ID, id: ID): Promise<Order> {
   const cancellableStatuses: OrderStatus[] = [
     OrderStatus.PendingAccept,
-    OrderStatus.PendingPay,
-    OrderStatus.Accepted,
-    OrderStatus.WalkerArrived,
-    OrderStatus.InService,
-    OrderStatus.PendingOwnerConfirm
+    OrderStatus.PendingPay
   ];
   const { data: current } = await supabase
     .from('orders')
@@ -346,30 +338,22 @@ export async function cancelOrder(userId: ID, id: ID): Promise<Order> {
   return updateOwnerOrder(userId, id, { order_status: OrderStatus.Cancelled, cancel_reason: '主人取消' });
 }
 
-export async function simulateAcceptOrder(userId: ID, id: ID): Promise<Order> {
-  const { data, error } = await supabase.from('orders').select('*').eq('id', id).eq('owner_id', userId).maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error('订单不存在');
-  const order = mapOrder(data);
-  if (order.ownerUserId === userId) throw new Error('主人不能接自己发布的订单');
-  return updateOwnerOrder(userId, id, { walker_id: userId, walker_nickname_snapshot: '模拟遛狗员', order_status: OrderStatus.PendingPay });
-}
-
 export async function simulatePayOrder(userId: ID, id: ID): Promise<Order> {
   return updateOwnerOrder(userId, id, { pay_status: PayStatus.Success, order_status: OrderStatus.Accepted });
 }
 
-export async function simulateStartService(userId: ID, id: ID): Promise<Order> {
-  const order = await updateOwnerOrder(userId, id, { order_status: OrderStatus.InService, start_time: new Date().toISOString() });
-  await seedLiveData(order);
-  return order;
-}
-
-export async function simulateFinishService(userId: ID, id: ID): Promise<Order> {
-  return updateOwnerOrder(userId, id, { order_status: OrderStatus.PendingOwnerConfirm, end_time: new Date().toISOString() });
-}
-
 export async function confirmOrderComplete(userId: ID, id: ID): Promise<Order> {
+  const { data: current, error } = await supabase
+    .from('orders')
+    .select('order_status')
+    .eq('id', id)
+    .eq('owner_id', userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!current) throw new Error('订单不存在');
+  if (current.order_status !== OrderStatus.PendingOwnerConfirm) {
+    throw new Error('遛遛侠提交服务报告后，主人才能确认完成');
+  }
   return updateOwnerOrder(userId, id, { order_status: OrderStatus.Completed, completed_at: new Date().toISOString() });
 }
 
@@ -429,45 +413,6 @@ async function updateOwnerOrder(userId: ID, id: ID, values: Record<string, any>)
   const { data, error } = await supabase.from('orders').update(values).eq('id', id).eq('owner_id', userId).select('*').single();
   if (error) throw new Error(error.message);
   return mapOrder(data);
-}
-
-async function seedLiveData(order: Order) {
-  const point = { lat: SERVICE_CENTER.lat + 0.002, lng: SERVICE_CENTER.lng - 0.002 };
-  await supabase.from('order_tracks').insert(
-    Array.from({ length: 4 }).map((_, index) =>
-      trackToRow({
-        orderId: order.id,
-        walkerUserId: order.walkerUserId ?? '',
-        lat: point.lat + index * 0.0002,
-        lng: point.lng + index * 0.0002,
-        accuracy: 12,
-        speed: 1.2,
-        direction: 80,
-        recordedAt: new Date(Date.now() - (4 - index) * 60_000).toISOString()
-      })
-    )
-  );
-  await supabase.from('order_checkpoints').insert(
-    checkpointToRow({
-      orderId: order.id,
-      walkerUserId: order.walkerUserId ?? '',
-      checkpointType: CheckpointType.ServiceStarted,
-      lat: point.lat,
-      lng: point.lng,
-      note: '开始服务'
-    })
-  );
-  await supabase.from('order_media').insert(
-    mediaToRow({
-      orderId: order.id,
-      uploaderUserId: order.walkerUserId ?? '',
-      mediaType: 1,
-      mediaScene: 2,
-      mediaUrl: '',
-      thumbnailUrl: '',
-      remark: '过程打卡'
-    })
-  );
 }
 
 function getOrderFilterStatuses(filter: string): OrderStatus[] {

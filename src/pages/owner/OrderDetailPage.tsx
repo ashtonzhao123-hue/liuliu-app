@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Popup, Selector, Space, Tag, Toast } from 'antd-mobile';
 import { useNavigate, useParams } from 'react-router-dom';
-import { cancelOrder, getOrderBundle, simulateAcceptOrder, simulateFinishService, simulatePayOrder, simulateStartService } from '../../api/owner';
+import { cancelOrder, getOrderBundle, simulatePayOrder } from '../../api/owner';
 import { OrderStatusSteps } from '../../components/OrderStatusSteps';
 import { PageContainer } from '../../components/PageContainer';
 import { ShareReportCard } from '../../components/ShareReportCard';
@@ -187,9 +187,7 @@ function OrderActions({
           <Button block color="danger" fill="outline" loading={running} disabled={running} onClick={onCancel}>
             取消订单
           </Button>
-          <Button block color="primary" loading={running} disabled={running} onClick={() => void onRun(() => simulateAcceptOrder(currentUser.id, order.id), '服务者已接单')}>
-            模拟接单
-          </Button>
+          <p className="muted-text">订单已放入接单大厅，正在等待附近遛遛侠接单。</p>
         </>
       ) : null}
       {order.orderStatus === OrderStatus.PendingPay ? (
@@ -197,21 +195,13 @@ function OrderActions({
           立即支付
         </Button>
       ) : null}
-      {order.orderStatus === OrderStatus.Accepted ? (
-        <Button block color="primary" loading={running} disabled={running} onClick={() => void onRun(() => simulateStartService(currentUser.id, order.id), '服务已开始')}>
-          模拟开始服务
-        </Button>
-      ) : null}
+      {order.orderStatus === OrderStatus.Accepted ? <p className="muted-text">遛遛侠会在到达后打卡并开始服务，你可以查看实时进度。</p> : null}
       {isLiveOrder(order.orderStatus) ? (
         <Button block color="primary" fill="outline" onClick={() => navigate(`/owner/orders/${order.id}/live`)}>
           查看服务进度
         </Button>
       ) : null}
-      {order.orderStatus === OrderStatus.InService ? (
-        <Button block color="primary" loading={running} disabled={running} onClick={() => void onRun(() => simulateFinishService(currentUser.id, order.id), '服务待确认')}>
-          模拟结束服务
-        </Button>
-      ) : null}
+      {order.orderStatus === OrderStatus.InService ? <p className="muted-text">服务进行中，结束后会收到遛遛侠的报告和确认提醒。</p> : null}
       {order.orderStatus === OrderStatus.PendingOwnerConfirm ? (
         <>
           <Button block color="primary" onClick={() => navigate(`/owner/orders/${order.id}/confirm`)}>
@@ -274,3 +264,4 @@ function WalkReportCard({ order }: { order: Order }) {
     </Card>
   );
 }
+
