@@ -3,7 +3,6 @@ import {
   CheckpointType,
   ComplaintStatus,
   OrderStatus,
-  WalkerAuthStatus,
   WalkerServiceStatus,
   type Complaint,
   type ID,
@@ -362,14 +361,11 @@ function randomDelta(): number {
 async function assertWalkerCanAccept(walkerUserId: ID): Promise<void> {
   const { data, error } = await supabase
     .from('walker_auth')
-    .select('walker_auth_status, walker_service_status')
+    .select('student_card_url, walker_service_status')
     .eq('user_id', walkerUserId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new Error('浣犺繕鏈彁浜ゆ湇鍔¤€呰璇侊紝璇峰厛瀹屾垚璁よ瘉');
-  if (data.walker_auth_status !== WalkerAuthStatus.Approved) {
-    throw new Error('浣犵殑鏈嶅姟鑰呰璇佽繕鏈€氳繃瀹℃牳');
-  }
+  if (!data?.student_card_url) throw new Error('先上传学生证留个档，再开始接单');
   if (data.walker_service_status === WalkerServiceStatus.Disabled) {
     throw new Error('浣犵殑鏈嶅姟璧勬牸宸茶绂佺敤锛岃鑱旂郴骞冲彴');
   }

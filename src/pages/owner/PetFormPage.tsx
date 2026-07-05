@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Form, Input, Picker, Selector, Switch, TextArea } from 'antd-mobile';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PET_BREEDS, getPet, savePet, type PetInput } from '../../api/owner';
 import { PageContainer } from '../../components/PageContainer';
 import { useAppStore } from '../../stores/useAppStore';
@@ -32,11 +32,13 @@ interface PetFormIssue {
 export function PetFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const currentUser = useAppStore((state) => state.currentUser);
   const [form, setForm] = useState<PetInput>(defaultForm);
   const [breedVisible, setBreedVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [issue, setIssue] = useState<PetFormIssue>();
+  const isOnboarding = (location.state as { onboarding?: boolean } | null)?.onboarding === true;
 
   useEffect(() => {
     if (!currentUser || !id) return;
@@ -149,6 +151,11 @@ export function PetFormPage() {
       <Button block color="primary" size="large" loading={submitting} onClick={handleSubmit}>
         提交审核
       </Button>
+      {isOnboarding ? (
+        <Button block fill="none" className="onboarding-skip" onClick={() => navigate('/owner', { replace: true })}>
+          跳过，以后再说
+        </Button>
+      ) : null}
       <Picker
         columns={[PET_BREEDS.map((breed) => ({ label: breed.label, value: breed.code }))]}
         visible={breedVisible}

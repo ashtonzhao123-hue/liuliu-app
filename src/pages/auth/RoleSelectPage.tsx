@@ -2,6 +2,8 @@ import { Card } from 'antd-mobile';
 import { TeamOutline, UserOutline } from 'antd-mobile-icons';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { listPets } from '../../api/owner';
+import { getWalkerCredentialStatus } from '../../api/walkerCredential';
 import type { SelectedRole } from '../../types';
 import { useAppStore } from '../../stores/useAppStore';
 import { getFriendlyErrorMessage } from '../../utils/errors';
@@ -27,22 +29,35 @@ const roles = [
 export function RoleSelectPage() {
   const navigate = useNavigate();
   const selectRole = useAppStore((state) => state.selectRole);
+  const currentUser = useAppStore((state) => state.currentUser);
   const roleMode = useAppStore((state) => state.roleMode);
   const hasSelectedRole = useAppStore((state) => state.hasSelectedRole);
   const [submittingRole, setSubmittingRole] = useState<SelectedRole | undefined>();
 
   useEffect(() => {
+    if (submittingRole) return;
     if (hasSelectedRole) {
       navigate(roleMode === 'walker' ? '/walker' : '/owner', { replace: true });
     }
-  }, [hasSelectedRole, navigate, roleMode]);
+  }, [hasSelectedRole, navigate, roleMode, submittingRole]);
 
   async function handleSelect(role: SelectedRole) {
+    if (!currentUser) return;
     try {
       setSubmittingRole(role);
-      const nextPath = await selectRole(role);
+      await selectRole(role);
       notify('好了，给你备好首页了', 'success');
-      navigate(nextPath, { replace: true });
+      if (role === 'walker') {
+        const status = await getWalkerCredentialStatus(currentUser.id);
+        navigate(status.hasStudentCard ? '/walker' : '/walker/credential', { replace: true });
+        return;
+      }
+
+      const pets = await listPets(currentUser.id);
+      navigate(pets.length === 0 ? '/owner/pets/new' : '/owner', {
+        replace: true,
+        state: pets.length === 0 ? { onboarding: true } : undefined
+      });
     } catch (error) {
       notify(getFriendlyErrorMessage(error, '身份没选成，我们再试一次？'), 'error');
     } finally {

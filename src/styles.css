@@ -2162,6 +2162,84 @@ textarea {
   text-align: center;
 }
 
+.credential-card {
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid rgba(141, 179, 196, 0.32);
+  border-radius: 12px;
+  background: var(--color-yuebai, #f5f0eb);
+  box-shadow: var(--shadow-sm);
+}
+
+.credential-card h2 {
+  margin: 0 0 8px;
+  color: var(--color-mohui, #3d3d3d);
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.credential-desc {
+  margin: 0 0 16px;
+  color: var(--color-qian-mohui, #8c8c8c);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.credential-skip,
+.onboarding-skip {
+  width: 100%;
+  margin-top: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--color-qian-mohui, #8c8c8c);
+  font-size: 13px;
+}
+
+.credential-privacy {
+  margin: 14px 0 0;
+  color: var(--color-qian-mohui, #8c8c8c);
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.credential-reminder {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(181, 131, 106, 0.28);
+  border-radius: 12px;
+  background: rgba(244, 236, 216, 0.82);
+  color: var(--color-mohui, #3d3d3d);
+}
+
+.credential-reminder strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 14px;
+}
+
+.credential-reminder p {
+  margin: 0;
+  color: var(--color-qian-mohui, #8c8c8c);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.credential-reminder__close {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.52);
+  color: var(--color-qian-mohui, #8c8c8c);
+  font-size: 14px;
+  cursor: pointer;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .walker-activity-dot {
     animation: none;

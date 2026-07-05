@@ -26,6 +26,7 @@ const ReviewPage = lazy(() => import('./pages/owner/ReviewPage').then((module) =
 const WalkerArrivePage = lazy(() => import('./pages/walker/WalkerArrivePage').then((module) => ({ default: module.WalkerArrivePage })));
 const WalkerFinishPage = lazy(() => import('./pages/walker/WalkerFinishPage').then((module) => ({ default: module.WalkerFinishPage })));
 const WalkerGoPage = lazy(() => import('./pages/walker/WalkerGoPage').then((module) => ({ default: module.WalkerGoPage })));
+const WalkerCredentialPage = lazy(() => import('./pages/walker/WalkerCredentialPage').then((module) => ({ default: module.WalkerCredentialPage })));
 const WalkerHistoryPage = lazy(() => import('./pages/walker/WalkerHistoryPage').then((module) => ({ default: module.WalkerHistoryPage })));
 const WalkerLivePage = lazy(() => import('./pages/walker/WalkerLivePage').then((module) => ({ default: module.WalkerLivePage })));
 const WalkerOrderDetailPage = lazy(() => import('./pages/walker/WalkerOrderDetailPage').then((module) => ({ default: module.WalkerOrderDetailPage })));
@@ -63,6 +64,7 @@ export function App() {
           <Route path="/owner/orders/:id/complaint" element={<ProtectedRoute element={<ComplaintPage />} />} />
           <Route path="/owner/profile" element={<ProtectedRoute element={<OwnerProfilePage />} />} />
           <Route path="/walker" element={<ProtectedRoute element={<WalkerHomePage />} />} />
+          <Route path="/walker/credential" element={<ProtectedRoute element={<WalkerCredentialPage />} />} />
           <Route path="/walker/orders/:id" element={<ProtectedRoute element={<WalkerOrderDetailPage />} />} />
           <Route path="/walker/orders/:id/go" element={<ProtectedRoute element={<WalkerGoPage />} />} />
           <Route path="/walker/orders/:id/arrive" element={<ProtectedRoute element={<WalkerArrivePage />} />} />

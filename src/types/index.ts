@@ -167,6 +167,7 @@ export interface WalkerAuth extends TimestampFields {
   schoolName: string;
   studentNo?: string;
   campusEmail?: string;
+  idCardUrl?: string;
   studentCardUrl: string;
   studentCardHoldUrl: string;
   livingAreaText: string;

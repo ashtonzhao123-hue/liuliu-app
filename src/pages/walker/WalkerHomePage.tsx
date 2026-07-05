@@ -11,6 +11,7 @@ import {
   type WalkerOrderBundle,
   type WalkerStats
 } from '../../api/walker';
+import { getWalkerCredentialStatus } from '../../api/walkerCredential';
 import { FriendlyEmpty } from '../../components/FriendlyEmpty';
 import { PageContainer } from '../../components/PageContainer';
 import { useAppStore } from '../../stores/useAppStore';
@@ -28,6 +29,8 @@ const EMPTY_STATS: WalkerStats = {
   totalDistance: 0
 };
 
+const CREDENTIAL_HINT_PREFIX = 'liuliu_walker_credential_hint_seen_';
+
 export function WalkerHomePage() {
   const navigate = useNavigate();
   const currentUser = useAppStore((state) => state.currentUser);
@@ -35,15 +38,21 @@ export function WalkerHomePage() {
   const [orders, setOrders] = useState<WalkerOrderBundle[]>([]);
   const [stats, setStats] = useState<WalkerStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
+  const [showCredentialHint, setShowCredentialHint] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
     setOnline(getWalkerOnlineStatus(currentUser.id));
     markWalkerActive(currentUser.id);
-    void Promise.all([listAvailableOrders(), getWalkerStats(currentUser.id)])
-      .then(([availableOrders, nextStats]) => {
+    void Promise.all([listAvailableOrders(), getWalkerStats(currentUser.id), getWalkerCredentialStatus(currentUser.id)])
+      .then(([availableOrders, nextStats, credentialStatus]) => {
         setOrders(availableOrders);
         setStats(nextStats);
+        const hintKey = `${CREDENTIAL_HINT_PREFIX}${currentUser.id}`;
+        if (!credentialStatus.hasStudentCard && localStorage.getItem(hintKey) !== '1') {
+          setShowCredentialHint(true);
+          localStorage.setItem(hintKey, '1');
+        }
       })
       .catch((error) => notify(getFriendlyErrorMessage(error, '接单大厅暂时没加载出来，稍后再看看？'), 'error'))
       .finally(() => setLoading(false));
@@ -79,6 +88,20 @@ export function WalkerHomePage() {
 
   return (
     <PageContainer title="今天有空吗？" subtitle="接一单，把风也遛一遛">
+      {showCredentialHint ? (
+        <div className="credential-reminder" role="status">
+          <div>
+            <strong>学生证还没留档</strong>
+            <p>现在也能逛大厅，接单前记得补一下。</p>
+          </div>
+          <Button size="small" color="primary" onClick={() => navigate('/walker/credential')}>
+            去上传
+          </Button>
+          <button className="credential-reminder__close" type="button" aria-label="关闭提醒" onClick={() => setShowCredentialHint(false)}>
+            x
+          </button>
+        </div>
+      ) : null}
       <Card className="summary-card walker-achievement-card" title="遛遛战绩">
         <div className="walker-achievement-grid">
           <AchievementMetric label="累计遛狗" value={stats.serviceCount} suffix="单" />

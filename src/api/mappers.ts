@@ -379,6 +379,7 @@ export function mapWalkerAuth(row: Row): WalkerAuth {
     schoolName: row.school_name ?? '',
     studentNo: row.student_no ?? undefined,
     campusEmail: row.campus_email ?? undefined,
+    idCardUrl: row.id_card_url ?? undefined,
     studentCardUrl: row.student_card_url ?? '',
     studentCardHoldUrl: row.student_card_hold_url ?? '',
     livingAreaText: row.living_area_text ?? '',
@@ -393,6 +394,27 @@ export function mapWalkerAuth(row: Row): WalkerAuth {
     createdAt: row.created_at ?? new Date().toISOString(),
     updatedAt: row.updated_at ?? new Date().toISOString()
   };
+}
+
+export function walkerAuthToRow(auth: Partial<WalkerAuth>) {
+  return stripUndefined({
+    user_id: auth.userId,
+    school_name: auth.schoolName,
+    student_no: auth.studentNo,
+    campus_email: auth.campusEmail,
+    id_card_url: auth.idCardUrl ?? null,
+    student_card_url: auth.studentCardUrl ?? null,
+    student_card_hold_url: auth.studentCardHoldUrl,
+    living_area_text: auth.livingAreaText,
+    service_radius_km: auth.serviceRadiusKm,
+    walker_auth_status: auth.walkerAuthStatus,
+    reject_reason: auth.rejectReason,
+    exam_status: auth.examStatus,
+    exam_score: auth.examScore,
+    walker_level: auth.walkerLevel,
+    walker_service_status: auth.walkerServiceStatus,
+    approved_at: auth.approvedAt
+  });
 }
 
 export function stripUndefined<T extends Record<string, any>>(value: T): T {
