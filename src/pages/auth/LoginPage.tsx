@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
-import { Button, Checkbox, Form, Input } from 'antd-mobile';
-import { EyeInvisibleOutline, EyeOutline } from 'antd-mobile-icons';
-import { signUpWithPassword } from '../../api/auth';
+import { Button, Checkbox } from 'antd-mobile';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../stores/useAppStore';
 import { getFriendlyErrorMessage } from '../../utils/errors';
@@ -14,7 +12,6 @@ export function LoginPage() {
   const navigate = useNavigate();
   const sendLoginCode = useAppStore((state) => state.sendLoginCode);
   const loginWithPhoneOtp = useAppStore((state) => state.loginWithPhoneOtp);
-  const loginWithPassword = useAppStore((state) => state.loginWithPassword);
   const [phone, setPhone] = useState(() => localStorage.getItem(PHONE_STORAGE_KEY) ?? '');
   const [otpDigits, setOtpDigits] = useState<string[]>(Array.from({ length: OTP_LENGTH }, () => ''));
   const [otpSent, setOtpSent] = useState(false);
@@ -23,19 +20,11 @@ export function LoginPage() {
   const [verifying, setVerifying] = useState(false);
   const [shakeOtp, setShakeOtp] = useState(false);
   const [agreed, setAgreed] = useState(false);
-  const [emailOpen, setEmailOpen] = useState(false);
-  const [emailMode, setEmailMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [passwordVisible, setPasswordVisible] = useState(false);
-  const [emailSubmitting, setEmailSubmitting] = useState(false);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const verifyingTokenRef = useRef('');
 
   const phoneValid = useMemo(() => /^1[3-9]\d{9}$/.test(phone), [phone]);
   const otpToken = otpDigits.join('');
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  const canUseEmail = emailValid && password.length >= 6 && !emailSubmitting;
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -134,31 +123,6 @@ export function LoginPage() {
     inputRefs.current[nextEmpty === -1 ? OTP_LENGTH - 1 : nextEmpty]?.focus();
   }
 
-  async function handleEmailAuth() {
-    if (!agreed) {
-      notify('先勾选协议，我们再继续');
-      return;
-    }
-
-    try {
-      setEmailSubmitting(true);
-      if (emailMode === 'register') {
-        await signUpWithPassword({ email: email.trim(), password });
-        notify('账号已创建，请回到邮箱登录', 'success');
-        setEmailMode('login');
-        return;
-      }
-
-      const result = await loginWithPassword({ email: email.trim(), password });
-      notify('欢迎回来', 'success');
-      navigate(result.nextPath, { replace: true });
-    } catch (error) {
-      notify(getFriendlyErrorMessage(error, emailMode === 'register' ? '注册遇到点小问题，再试一次' : '邮箱登录失败，再试一次'), 'error');
-    } finally {
-      setEmailSubmitting(false);
-    }
-  }
-
   return (
     <main className="auth-page auth-page--login">
       <section className="auth-panel auth-panel--phone" aria-label="手机号登录">
@@ -220,35 +184,6 @@ export function LoginPage() {
         <Checkbox className="agreement" checked={agreed} onChange={(checked) => setAgreed(Boolean(checked))}>
           我已阅读并同意 <span className="link-text">《用户协议》</span> 和 <span className="link-text">《隐私政策》</span>
         </Checkbox>
-
-        <div className="alternate-login">
-          <button className="alternate-login__toggle" type="button" onClick={() => setEmailOpen((value) => !value)}>
-            其他登录方式
-          </button>
-          {emailOpen ? (
-            <div className="email-login-panel">
-              <Form layout="vertical" footer={null} className="auth-form auth-form--compact">
-                <Form.Item label="邮箱">
-                  <Input inputMode="email" placeholder="你的邮箱" value={email} onChange={setEmail} />
-                </Form.Item>
-                <Form.Item label="密码">
-                  <div className="password-field">
-                    <Input type={passwordVisible ? 'text' : 'password'} placeholder="至少 6 位" value={password} onChange={setPassword} />
-                    <button className="icon-button" type="button" aria-label={passwordVisible ? '隐藏密码' : '显示密码'} onClick={() => setPasswordVisible(!passwordVisible)}>
-                      {passwordVisible ? <EyeInvisibleOutline /> : <EyeOutline />}
-                    </button>
-                  </div>
-                </Form.Item>
-              </Form>
-              <Button block fill="outline" loading={emailSubmitting} disabled={!canUseEmail} onClick={() => void handleEmailAuth()}>
-                {emailMode === 'register' ? '注册邮箱账号' : '邮箱登录'}
-              </Button>
-              <button className="email-login-panel__switch" type="button" onClick={() => setEmailMode((mode) => (mode === 'login' ? 'register' : 'login'))}>
-                {emailMode === 'login' ? '没有账号？注册' : '已有账号？登录'}
-              </button>
-            </div>
-          ) : null}
-        </div>
       </section>
     </main>
   );

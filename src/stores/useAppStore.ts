@@ -73,8 +73,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const user = await getCurrentBusinessUser();
       const { data } = await supabase.auth.getSession();
-      const { data: authData } = await supabase.auth.getUser();
-      const metadataRole = getMetadataRole(authData.user?.user_metadata?.role);
       const token = data.session
         ? {
             accessToken: data.session.access_token,
@@ -84,7 +82,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               : new Date(Date.now() + 3600_000).toISOString()
           }
         : undefined;
-      set(applyUserState(user, token, metadataRole));
+      set(applyUserState(user, token));
     } catch {
       set({ isAuthReady: true });
     }
@@ -123,7 +121,3 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   }
 }));
-
-function getMetadataRole(role: unknown): SelectedRole | undefined {
-  return role === 'owner' || role === 'walker' ? role : undefined;
-}

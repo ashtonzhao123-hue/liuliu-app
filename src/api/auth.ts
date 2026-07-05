@@ -42,7 +42,7 @@ export async function loginWithPhoneOtp({ phone, token }: VerifyPhoneOtpRequest)
   if (error) throw new Error(error.message);
   if (!data.user || !data.session) throw new Error('登录失败');
   const user = await ensureBusinessUser(data.user);
-  return buildLoginResponse(user, data.session, data.user);
+  return buildLoginResponse(user, data.session);
 }
 
 export async function loginWithPassword({ email, password }: PasswordAuthRequest): Promise<LoginResponse> {
@@ -51,7 +51,7 @@ export async function loginWithPassword({ email, password }: PasswordAuthRequest
   if (error) throw new Error(error.message);
   if (!data.user || !data.session) throw new Error('登录失败');
   const user = await ensureBusinessUser(data.user);
-  return buildLoginResponse(user, data.session, data.user);
+  return buildLoginResponse(user, data.session);
 }
 
 export async function signUpWithPassword({ email, password }: PasswordAuthRequest): Promise<void> {
@@ -128,8 +128,8 @@ async function findBusinessUser(authId: string): Promise<User | undefined> {
   return data ? mapUser(data) : undefined;
 }
 
-function buildLoginResponse(user: User, session: Session, authUser: SupabaseUser): LoginResponse {
-  const selectedRole = getSelectedRole(user.roleType) ?? getMetadataRole(authUser);
+function buildLoginResponse(user: User, session: Session): LoginResponse {
+  const selectedRole = getSelectedRole(user.roleType);
   return {
     token: {
       accessToken: session.access_token,
@@ -146,11 +146,6 @@ function getSelectedRole(roleType?: RoleType): SelectedRole | undefined {
   if (roleType === RoleType.Walker) return 'walker';
   if (roleType === RoleType.Owner || roleType === RoleType.Dual) return 'owner';
   return undefined;
-}
-
-function getMetadataRole(authUser: SupabaseUser): SelectedRole | undefined {
-  const role = authUser.user_metadata?.role;
-  return role === 'owner' || role === 'walker' ? role : undefined;
 }
 
 function getAuthIdentity(authUser: SupabaseUser): string {
