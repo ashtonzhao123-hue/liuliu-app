@@ -10,6 +10,9 @@ alter table public.users
   add column if not exists phone varchar(20),
   add column if not exists is_verified boolean default false;
 
+alter table public.users
+  alter column role_type drop default;
+
 create unique index if not exists users_phone_unique_idx
   on public.users (phone)
   where phone is not null;

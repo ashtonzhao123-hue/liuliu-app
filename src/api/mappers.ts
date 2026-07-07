@@ -41,7 +41,7 @@ export function mapUser(row: Row): User {
   };
 }
 
-export function userToRow(user: Partial<User> & { authId?: string; email?: string }) {
+export function userToRow(user: Partial<Omit<User, 'roleType'>> & { roleType?: RoleType | null; authId?: string; email?: string }) {
   return stripUndefined({
     auth_id: user.authId,
     mobile: user.mobile,

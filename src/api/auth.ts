@@ -102,6 +102,7 @@ async function ensureBusinessUser(authUser: SupabaseUser): Promise<User> {
         nickname: getDefaultNickname(identity),
         avatarUrl: '',
         gender: 0,
+        roleType: null,
         userStatus: UserStatus.Normal,
         registerSource: authUser.phone ? 'phone_otp' : 'email_password',
         lastLoginAt: now,
